@@ -1,4 +1,4 @@
-export type NSBCInitPayload = {
+export interface NSBCInitPayload {
   token: string
   firmId: string
   clientId: string
@@ -8,13 +8,38 @@ export type NSBCInitPayload = {
   mode: 'simple' | 'flow'
 }
 
-export function listenForInit(callback: (payload: NSBCInitPayload) => void) {
+export const DEV_PAYLOAD: NSBCInitPayload = {
+  token: 'dev-token',
+  firmId: 'dev-firm-id',
+  clientId: 'dev-client-id',
+  templateId: null,
+  serviceId: 'dev-service-id',
+  userId: 'dev-user-id',
+  mode: 'simple',
+}
+
+export function listenForInit(
+  callback: (payload: NSBCInitPayload) => void,
+  timeoutMs = 500
+) {
+  let resolved = false
+
   const handler = (event: MessageEvent) => {
     if (event.data?.type === 'NSBC_INIT') {
+      resolved = true
       callback(event.data.payload)
     }
   }
+
   window.addEventListener('message', handler)
+
+  setTimeout(() => {
+    if (!resolved) {
+      console.warn('[NSBC] No NSBC_INIT received — using dev payload')
+      callback(DEV_PAYLOAD)
+    }
+  }, timeoutMs)
+
   return () => window.removeEventListener('message', handler)
 }
 
