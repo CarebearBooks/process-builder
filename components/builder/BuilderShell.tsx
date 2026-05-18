@@ -7,14 +7,19 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { CheckIcon, CloudIcon, PencilIcon } from 'lucide-react'
+import { CheckIcon, CloudIcon, PencilIcon, Redo2, Undo2 } from 'lucide-react'
 import { useBuilderStore } from '@/src/store/builderStore'
 import StepPalette from './StepPalette'
 import StepList from '@/src/components/SimpleMode/StepList'
 import ConfigPanel from '../configure/ConfigurePanel'
+import { useTemplate } from '@/hooks/useTemplate'
+import { useBuilderKeyboard } from '@/hooks/createBuilderKey'
+import { createClient } from '@/lib/supabase'
 
 export default function BuilderShell() {
+  useBuilderKeyboard()
   const {
+    templateId,
     templateName, setTemplateName,
     templateMode, setTemplateMode,
     templateStatus,
@@ -24,21 +29,46 @@ export default function BuilderShell() {
   } = useBuilderStore()
 
   const [editingName, setEditingName] = useState(false)
+  const { undo, redo, canUndo, canRedo } = useBuilderStore()
+  const { initPayload } = useBuilderStore()
   const nameRef = useRef<HTMLInputElement>(null)
+  const { save } = useTemplate()
 
   useEffect(() => {
     if (editingName) nameRef.current?.focus()
   }, [editingName])
 
-  const handlePublish = () => {
-    sendToParent('NSBC_PUBLISH_COMPLETE', { templateId: 'dev-template-id' })
-    // TODO: wire to Supabase save + status update
+  // const handlePublish = () => {
+  //   sendToParent('NSBC_PUBLISH_COMPLETE', { templateId: 'dev-template-id' })
+  //   // TODO: wire to Supabase save + status update
+  // }
+  const handlePublish = async () => {
+  await save()
+
+  if (initPayload && initPayload.firmId !== 'dev-firm-id' && templateId) {
+    const supabase = createClient()
+    await supabase
+      .from('process_templates')
+      .update({
+        status: 'active',
+        published_at: new Date().toISOString(),
+        version: supabase.rpc('increment_version', { template_id: templateId }),
+      })
+      .eq('id', templateId)
   }
 
+  useBuilderStore.setState({ templateStatus: 'active' })
+  sendToParent('NSBC_PUBLISH_COMPLETE', { templateId: templateId ?? 'dev' })
+}
+
+  // const handleSave = () => {
+  //   sendToParent('NSBC_SAVE_COMPLETE', { templateId: 'dev-template-id' })
+  //   // TODO: wire to Supabase save
+  // }
   const handleSave = () => {
-    sendToParent('NSBC_SAVE_COMPLETE', { templateId: 'dev-template-id' })
-    // TODO: wire to Supabase save
-  }
+  save()
+  sendToParent('NSBC_SAVE_COMPLETE', { templateId: templateId ?? 'dev' })
+}
 
   const saveLabel = isSaving
     ? 'Saving…'
@@ -115,6 +145,25 @@ export default function BuilderShell() {
           <CloudIcon className="h-3.5 w-3.5" />
           {saveLabel}
         </span>
+        {/* Undo / Redo */}
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => canUndo() && undo()}
+            disabled={!canUndo()}
+            title="Undo (Ctrl+Z)"
+            className="flex h-7 w-7 items-center justify-center rounded text-white/40 hover:bg-white/10 hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => canRedo() && redo()}
+            disabled={!canRedo()}
+            title="Redo (Ctrl+Shift+Z)"
+            className="flex h-7 w-7 items-center justify-center rounded text-white/40 hover:bg-white/10 hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
 
         <Separator orientation="vertical" className="h-5 bg-white/10" />
 
