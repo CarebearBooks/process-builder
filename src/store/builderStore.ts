@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 import type { NSBCInitPayload } from '@/lib/bridge'
-import { AutonomyLevel, Step } from '../types/step'
+import { AutonomyLevel, FlowEdge, FlowNode, Step } from '../types/step'
 import { BuilderMode, TemplateStatus } from '../types/template'
 
 interface BuilderState {
@@ -27,6 +27,17 @@ interface BuilderState {
   addStep: (step: Step, insertAt?: number) => void
   updateStep: (id: string, patch: Partial<Step>) => void
   deleteStep: (id: string) => void
+
+  // Flow Mode graph
+  flowNodes: FlowNode[]
+  flowEdges: FlowEdge[]
+  setFlowNodes: (nodes: FlowNode[]) => void
+  setFlowEdges: (edges: FlowEdge[]) => void
+  addFlowNode: (node: FlowNode) => void
+  updateFlowNode: (id: string, data: Partial<FlowNode['data']>) => void
+  deleteFlowNode: (id: string) => void
+  connectFlowNodes: (edge: FlowEdge) => void
+  deleteFlowEdge: (id: string) => void
 
   // Selection
   selectedStepId: string | null
@@ -108,6 +119,40 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   setLastSavedAt: (d) => set({ lastSavedAt: d }),
   markDirty: () => set({ isDirty: true }),
   markClean: () => set({ isDirty: false }),
+  flowNodes: [],
+flowEdges: [],
+setFlowNodes: (nodes) => set({ flowNodes: nodes, isDirty: true }),
+setFlowEdges: (edges) => set({ flowEdges: edges, isDirty: true }),
+addFlowNode: (node) =>
+  set((state) => ({
+    flowNodes: [...state.flowNodes, node],
+    isDirty: true,
+  })),
+updateFlowNode: (id, data) =>
+  set((state) => ({
+    flowNodes: state.flowNodes.map((n) =>
+      n.id === id ? { ...n, data: { ...n.data, ...data } } : n
+    ),
+    isDirty: true,
+  })),
+deleteFlowNode: (id) =>
+  set((state) => ({
+    flowNodes: state.flowNodes.filter((n) => n.id !== id),
+    flowEdges: state.flowEdges.filter(
+      (e) => e.source !== id && e.target !== id
+    ),
+    isDirty: true,
+  })),
+connectFlowNodes: (edge) =>
+  set((state) => ({
+    flowEdges: [...state.flowEdges, edge],
+    isDirty: true,
+  })),
+deleteFlowEdge: (id) =>
+  set((state) => ({
+    flowEdges: state.flowEdges.filter((e) => e.id !== id),
+    isDirty: true,
+  })),
 
   // ── History ──────────────────────────────────────────
   history: [],

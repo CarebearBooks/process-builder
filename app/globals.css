@@ -127,3 +127,21 @@
     @apply bg-background text-foreground;
   }
 }
+/* ReactFlow dark theme overrides */
+.react-flow__controls-button {
+  background: #1a1d29 !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.5) !important;
+}
+.react-flow__controls-button:hover {
+  background: rgba(255,255,255,0.08) !important;
+}
+.react-flow__controls-button svg {
+  fill: rgba(255,255,255,0.5) !important;
+}
+.react-flow__edge-path {
+  stroke: rgba(255,255,255,0.15) !important;
+}
+.react-flow__attribution {
+  display: none !important;
+}

@@ -15,6 +15,7 @@ import ConfigPanel from '../configure/ConfigurePanel'
 import { useTemplate } from '@/hooks/useTemplate'
 import { useBuilderKeyboard } from '@/hooks/createBuilderKey'
 import { createClient } from '@/lib/supabase'
+import FlowCanvas from './FlowMode/FlowCanvas'
 
 export default function BuilderShell() {
   useBuilderKeyboard()
@@ -119,7 +120,14 @@ export default function BuilderShell() {
         {/* Mode toggle */}
         <Tabs
           value={templateMode}
-          onValueChange={(v) => setTemplateMode(v as 'simple' | 'flow')}
+          onValueChange={(v) => {
+            const newMode = v as 'simple' | 'flow'
+            if (newMode === 'flow') {
+              useBuilderStore.getState().setFlowNodes([])
+              useBuilderStore.getState().setFlowEdges([])
+            }
+            setTemplateMode(newMode)
+          }}
           className="ml-2"
         >
           <TabsList className="h-7 bg-white/5 border border-white/10">
@@ -188,14 +196,12 @@ export default function BuilderShell() {
 
       {/* ── BODY ── */}
       <div className="flex flex-1 min-h-0">
-        <StepPalette />
+        {templateMode === 'simple' && <StepPalette />}
         <main className="flex-1 overflow-y-auto">
           {templateMode === 'simple' ? (
             <StepList />
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-white/30">
-              Flow Mode canvas — coming next
-            </div>
+            <FlowCanvas />
           )}
         </main>
         <ConfigPanel />
