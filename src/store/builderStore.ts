@@ -12,7 +12,6 @@ interface BuilderState {
   // Template meta
   templateId: string | null
   templateName: string
-  templateDescription: string
   templateMode: BuilderMode
   templateStatus: TemplateStatus
   defaultAutonomy: AutonomyLevel
@@ -20,6 +19,13 @@ interface BuilderState {
   setTemplateDescription: (desc: string) => void
   setTemplateMode: (mode: BuilderMode) => void
   setDefaultAutonomy: (level: AutonomyLevel) => void
+  templateDescription: string
+  serviceId: string | null
+  serviceName: string
+  serviceVertical: string
+  wizardComplete: boolean
+  setServiceContext: (id: string, name: string, vertical: string) => void
+  setWizardComplete: (v: boolean) => void
 
   // Steps
   steps: Step[]
@@ -153,6 +159,13 @@ deleteFlowEdge: (id) =>
     flowEdges: state.flowEdges.filter((e) => e.id !== id),
     isDirty: true,
   })),
+  serviceId: null,
+  serviceName: '',
+  serviceVertical: '',
+  wizardComplete: false,
+  setServiceContext: (id, name, vertical) =>
+  set({ serviceId: id, serviceName: name, serviceVertical: vertical }),
+  setWizardComplete: (v) => set({ wizardComplete: v }),
 
   // ── History ──────────────────────────────────────────
   history: [],

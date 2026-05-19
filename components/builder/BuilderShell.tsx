@@ -1,37 +1,42 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useBuilderStore } from '@/src/store/builderStore'
 import { sendToParent } from '@/lib/bridge'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { CheckIcon, CloudIcon, PencilIcon, Redo2, Undo2 } from 'lucide-react'
-import { useBuilderStore } from '@/src/store/builderStore'
+import { CheckIcon, CloudIcon, PencilIcon, Undo2, Redo2, AlertCircle } from 'lucide-react'
 import StepPalette from './StepPalette'
-import StepList from '@/src/components/SimpleMode/StepList'
-import ConfigPanel from '../configure/ConfigurePanel'
-import { useTemplate } from '@/hooks/useTemplate'
-import { useBuilderKeyboard } from '@/hooks/createBuilderKey'
-import { createClient } from '@/lib/supabase'
+
 import FlowCanvas from './FlowMode/FlowCanvas'
+import NewTemplateWizard from './NewTemplateWizard'
+import { useTemplate } from '@/hooks/useTemplate'
+
+import { createClient } from '@/lib/supabase'
+import { validateTemplate } from '@/lib/validator'
+import ConfigPanel from '../configure/ConfigurePanel'
+import StepList from '@/src/components/SimpleMode/StepList'
+import { useBuilderKeyboard } from '@/hooks/createBuilderKey'
 
 export default function BuilderShell() {
   useBuilderKeyboard()
+
   const {
-    templateId,
-    templateName, setTemplateName,
+    templateId, templateName, setTemplateName,
     templateMode, setTemplateMode,
-    templateStatus,
-    isSaving, lastSavedAt,
-    isDirty,
-    steps,
+    templateStatus, templateDescription,
+    serviceName, serviceVertical,
+    isSaving, lastSavedAt, isDirty,
+    steps, wizardComplete,
+    undo, redo, canUndo, canRedo,
+    initPayload,
   } = useBuilderStore()
 
   const [editingName, setEditingName] = useState(false)
-  const { undo, redo, canUndo, canRedo } = useBuilderStore()
-  const { initPayload } = useBuilderStore()
+  const [showValidation, setShowValidation] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const { save } = useTemplate()
 
@@ -39,51 +44,97 @@ export default function BuilderShell() {
     if (editingName) nameRef.current?.focus()
   }, [editingName])
 
-  // const handlePublish = () => {
-  //   sendToParent('NSBC_PUBLISH_COMPLETE', { templateId: 'dev-template-id' })
-  //   // TODO: wire to Supabase save + status update
-  // }
-  const handlePublish = async () => {
-  await save()
-
-  if (initPayload && initPayload.firmId !== 'dev-firm-id' && templateId) {
-    const supabase = createClient()
-    await supabase
-      .from('process_templates')
-      .update({
-        status: 'active',
-        published_at: new Date().toISOString(),
-        version: supabase.rpc('increment_version', { template_id: templateId }),
-      })
-      .eq('id', templateId)
+  // Show wizard for new templates
+  if (!wizardComplete && !templateId) {
+    return <NewTemplateWizard />
   }
 
-  useBuilderStore.setState({ templateStatus: 'active' })
-  sendToParent('NSBC_PUBLISH_COMPLETE', { templateId: templateId ?? 'dev' })
-}
+  const validation = validateTemplate(templateName, steps, templateMode)
 
-  // const handleSave = () => {
-  //   sendToParent('NSBC_SAVE_COMPLETE', { templateId: 'dev-template-id' })
-  //   // TODO: wire to Supabase save
-  // }
+  const handlePublish = async () => {
+    if (!validation.valid) {
+      setShowValidation(true)
+      return
+    }
+    await save()
+    if (initPayload && initPayload.firmId !== 'dev-firm-id' && templateId) {
+      const supabase = createClient()
+      await supabase
+        .from('process_templates')
+        .update({
+          status: 'active',
+          published_at: new Date().toISOString(),
+        })
+        .eq('id', templateId)
+    }
+    useBuilderStore.setState({ templateStatus: 'active' })
+    sendToParent('NSBC_PUBLISH_COMPLETE', { templateId: templateId ?? 'dev' })
+  }
+
   const handleSave = () => {
-  save()
-  sendToParent('NSBC_SAVE_COMPLETE', { templateId: templateId ?? 'dev' })
-}
+    save()
+    sendToParent('NSBC_SAVE_COMPLETE', { templateId: templateId ?? 'dev' })
+  }
 
   const saveLabel = isSaving
     ? 'Saving…'
     : lastSavedAt
     ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-    : isDirty
-    ? 'Unsaved changes'
+    : isDirty ? 'Unsaved changes'
     : 'All changes saved'
 
   return (
     <div className="flex h-screen flex-col bg-[#0f1117] overflow-hidden">
 
-      {/* ── TOP BAR ── */}
+      {/* Validation banner */}
+      {showValidation && !validation.valid && (
+        <div className="flex items-center gap-3 bg-rose-500/10 border-b border-rose-500/20 px-4 py-2">
+          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+          <div className="flex-1">
+            {validation.errors.map((e, i) => (
+              <span key={i} className="text-xs text-rose-400 mr-3">{e}</span>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowValidation(false)}
+            className="text-rose-400/50 hover:text-rose-400 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Warnings banner */}
+      {showValidation && validation.valid && validation.warnings.length > 0 && (
+        <div className="flex items-center gap-3 bg-amber-500/10 border-b border-amber-500/20 px-4 py-2">
+          <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <span className="text-xs text-amber-400">
+            {validation.warnings[0]}
+            {validation.warnings.length > 1 && ` (+${validation.warnings.length - 1} more)`}
+          </span>
+          <button
+            onClick={() => setShowValidation(false)}
+            className="ml-auto text-amber-400/50 hover:text-amber-400 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* TOP BAR */}
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-white/[0.08] bg-[#0a0c12] px-4">
+
+        {/* Service breadcrumb */}
+        {serviceName && (
+          <>
+            <div className="flex items-center gap-1.5 text-xs text-white/30">
+              <span>{serviceVertical}</span>
+              <span className="text-white/15">›</span>
+              <span className="text-white/50">{serviceName}</span>
+              <span className="text-white/15">›</span>
+            </div>
+          </>
+        )}
 
         {/* Template name */}
         <div className="flex items-center gap-1.5 min-w-0">
@@ -94,7 +145,7 @@ export default function BuilderShell() {
               onChange={(e) => setTemplateName(e.target.value)}
               onBlur={() => setEditingName(false)}
               onKeyDown={(e) => e.key === 'Enter' && setEditingName(false)}
-              className="h-7 w-56 border-white/20 bg-white/5 text-sm text-white focus-visible:ring-blue-500"
+              className="h-7 w-52 border-white/20 bg-white/5 text-sm text-white focus-visible:ring-blue-500"
             />
           ) : (
             <button
@@ -140,20 +191,17 @@ export default function BuilderShell() {
           </TabsList>
         </Tabs>
 
-        {/* Step count */}
-        <span className="text-xs text-white/25 ml-1">
+        <span className="text-xs text-white/25">
           {steps.length} step{steps.length !== 1 ? 's' : ''}
         </span>
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Save status */}
         <span className="flex items-center gap-1.5 text-xs text-white/30">
           <CloudIcon className="h-3.5 w-3.5" />
           {saveLabel}
         </span>
-        {/* Undo / Redo */}
+
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => canUndo() && undo()}
@@ -175,7 +223,6 @@ export default function BuilderShell() {
 
         <Separator orientation="vertical" className="h-5 bg-white/10" />
 
-        {/* Actions */}
         <Button
           variant="outline"
           size="sm"
@@ -194,15 +241,11 @@ export default function BuilderShell() {
         </Button>
       </header>
 
-      {/* ── BODY ── */}
+      {/* BODY */}
       <div className="flex flex-1 min-h-0">
         {templateMode === 'simple' && <StepPalette />}
         <main className="flex-1 overflow-y-auto">
-          {templateMode === 'simple' ? (
-            <StepList />
-          ) : (
-            <FlowCanvas />
-          )}
+          {templateMode === 'simple' ? <StepList /> : <FlowCanvas />}
         </main>
         <ConfigPanel />
       </div>
