@@ -8,16 +8,38 @@ import { STEP_TYPE_CONFIG, AUTONOMY_CONFIG } from '@/src/lib/stepConfig'
 import { useBuilderStore } from '@/src/store/builderStore'
 import { Step } from '@/src/types/step'
 
-
 interface StepNodeData {
-  step: Step
+  step?: Step // Made optional to account for edge cases where data might be missing
 }
 
 function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const { step } = data
   const { setSelectedStepId, deleteFlowNode } = useBuilderStore()
-  const tc = STEP_TYPE_CONFIG[step.type]
-  const ac = AUTONOMY_CONFIG[step.autonomy_level]
+
+  // 1. Guard Clause: If step data is entirely missing or undefined, 
+  // render a fallback UI instead of throwing a runtime TypeError.
+  if (!step) {
+    return (
+      <div className="w-64 rounded-xl border border-dashed border-red-500/40 bg-red-950/20 p-4 text-center">
+        <p className="text-xs font-semibold text-red-400 uppercase tracking-wider">Error</p>
+        <p className="text-sm text-red-200/70 mt-1">Missing step configuration data.</p>
+      </div>
+    )
+  }
+
+  // 2. Safe Configuration Extraction: If step.type or step.autonomy_level 
+  // does not match keys in your config dictionaries, fall back to safe defaults.
+  const tc = STEP_TYPE_CONFIG[step.type] || {
+    bgColor: '#1e293b',    // Slate-800
+    color: '#94a3b8',      // Slate-400
+    label: 'Unknown Type'
+  }
+
+  const ac = AUTONOMY_CONFIG[step.autonomy_level] || {
+    pct: 0,
+    color: '#64748b',      // Slate-500
+    label: 'Unknown'
+  }
 
   return (
     <div

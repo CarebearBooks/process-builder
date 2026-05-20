@@ -23,29 +23,39 @@ import { useBuilderKeyboard } from '@/hooks/createBuilderKey'
 
 export default function BuilderShell() {
   useBuilderKeyboard()
+  // If steps already exist in store (e.g. after hot reload), skip wizard
+  useEffect(() => {
+    if (steps.length > 0 && !wizardComplete) {
+      useBuilderStore.setState({ wizardComplete: true })
+    }
+  }, [])
 
   const {
-    templateId, templateName, setTemplateName,
-    templateMode, setTemplateMode,
-    templateStatus, templateDescription,
-    serviceName, serviceVertical,
-    isSaving, lastSavedAt, isDirty,
-    steps, wizardComplete,
-    undo, redo, canUndo, canRedo,
-    initPayload,
-  } = useBuilderStore()
+  templateId, templateName, setTemplateName,
+  templateMode, setTemplateMode,
+  templateStatus, templateDescription,
+  serviceName, serviceVertical,
+  isSaving, lastSavedAt, isDirty,
+  steps,                        
+  wizardComplete,
+  undo, redo, canUndo, canRedo,
+  initPayload,
+} = useBuilderStore()
 
   const [editingName, setEditingName] = useState(false)
   const [showValidation, setShowValidation] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const { save } = useTemplate()
 
+  
+
   useEffect(() => {
     if (editingName) nameRef.current?.focus()
   }, [editingName])
 
-  // Show wizard for new templates
-  if (!wizardComplete && !templateId) {
+  // Show wizard only for genuinely new templates
+  const isNewTemplate = !templateId && steps.length === 0 && !wizardComplete
+  if (isNewTemplate) {
     return <NewTemplateWizard />
   }
 

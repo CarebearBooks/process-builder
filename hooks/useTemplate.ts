@@ -100,32 +100,35 @@ export function useTemplate() {
 
   // Load existing template on mount if templateId provided
   useEffect(() => {
-    if (!initPayload?.templateId) return
-    if (initPayload.templateId === 'dev-template-id') return
-    if (initPayload.firmId === 'dev-firm-id') return
+  // Skip if dev mode or no real templateId
+  if (!initPayload?.templateId) return
+  if (initPayload.templateId === 'dev-template-id') return
+  if (initPayload.firmId === 'dev-firm-id') return
 
-    const load = async () => {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('process_templates')
-        .select('*')
-        .eq('id', initPayload.templateId)
-        .single()
+  const load = async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('process_templates')
+      .select('*')
+      .eq('id', initPayload.templateId)
+      .single()
 
-      if (error || !data) return
+    if (error || !data) return
 
-      useBuilderStore.setState({
-        templateId: data.id,
-        templateName: data.name,
-        templateDescription: data.description ?? '',
-        templateMode: data.mode,
-        defaultAutonomy: data.default_autonomy,
-        steps: data.steps_json ?? [],
-      })
-    }
+    useBuilderStore.setState({
+      templateId: data.id,
+      templateName: data.name,
+      templateDescription: data.description ?? '',
+      templateMode: data.mode,
+      defaultAutonomy: data.default_autonomy,
+      steps: data.steps_json ?? [],
+      serviceName: data.service_name ?? '',
+      wizardComplete: true,   // ← skip wizard when loading existing template
+    })
+  }
 
-    load()
-  }, [initPayload])
+  load()
+}, [initPayload])
 
   return { save }
 }

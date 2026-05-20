@@ -11,12 +11,14 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import type { AutonomyLevel, StepType } from '@/src/types/step'
 
-const STEP_STARTERS = [
-  { type: 'data',   label: 'Data import',      checked: true  },
-  { type: 'ai',     label: 'AI processing',     checked: true  },
-  { type: 'human',  label: 'Human review',      checked: true  },
-  { type: 'report', label: 'Generate report',   checked: false },
-  { type: 'comm',   label: 'Send notification', checked: false },
+// Updated to perfectly match the defined StepType keys
+const STEP_STARTERS: { type: StepType; label: string; checked: boolean }[] = [
+  { type: 'data',          label: 'Data import',       checked: true  },
+  { type: 'ai',            label: 'AI processing',     checked: true  },
+  { type: 'human',         label: 'Human review',      checked: true  },
+  { type: 'logic',         label: 'Conditional logic', checked: false },
+  { type: 'communication', label: 'Send notification', checked: false },
+  { type: 'reporting',     label: 'Generate report',   checked: false },
 ]
 
 export default function NewTemplateWizard() {
@@ -62,13 +64,14 @@ export default function NewTemplateWizard() {
 
     const checkedStarters = starters.filter(s => s.checked)
     checkedStarters.forEach((starter) => {
-      const type = starter.type as StepType
+      const type = starter.type
       const cfg = STEP_TYPE_CONFIG[type] ?? STEP_TYPE_CONFIG.data
+      
       addStep({
         id: nanoid(),
         type,
         name: cfg.label + ' Step',
-        description: cfg.description,
+        description: cfg.description || '',
         autonomy_level: autonomy,
         assigned_role: type === 'human' ? 'accountant' : 'ai_agent',
         config: {},

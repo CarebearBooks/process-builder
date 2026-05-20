@@ -97,30 +97,83 @@ export default function FlowCanvas() {
   )
 
   const handleAddNode = (type: StepType) => {
-    const cfg = STEP_TYPE_CONFIG[type]
-    const id = nanoid()
-    const newNode: Node = {
-      id,
-      type: 'stepNode',
-      position: {
-        x: 100 + Math.random() * 200,
-        y: 100 + nodes.filter((n) => n.type === 'stepNode').length * 140,
+  const cfg = STEP_TYPE_CONFIG[type]
+  const id = nanoid()
+
+  const newNode: Node = {
+    id,
+    type: 'stepNode',
+    position: {
+      x: 180,
+      y: 100 + nodes.filter((n) => n.type === 'stepNode').length * 160,
+    },
+    data: {
+      step: {
+        id,
+        type,
+        name: `${cfg.label} Step`,
+        description: cfg.description,
+        autonomy_level: 'supervised',
+        assigned_role: type === 'human' ? 'accountant' : 'ai_agent',
+        config: {},
       },
-      data: {
-        step: {
-          id,
-          type,
-          name: `${cfg.label} Step`,
-          description: cfg.description,
-          autonomy_level: 'supervised',
-          assigned_role: type === 'human' ? 'accountant' : 'ai_agent',
-          config: {},
-        },
-      },
-    }
-    setNodes((nds) => [...nds, newNode])
-    addFlowNode(newNode as any)
+    },
   }
+
+  // Find the edge that currently points TO 'end'
+  const edgeToEnd = edges.find((e) => e.target === 'end')
+
+  // New edges:
+  // 1. Previous node → new node (replace old edge to end)
+  // 2. New node → end
+  const newEdges: Edge[] = []
+
+  if (edgeToEnd) {
+    // Replace the edge going to END with one going to new node
+    newEdges.push({
+      id: `e-${nanoid()}`,
+      source: edgeToEnd.source,
+      target: id,
+      type: 'condition',
+    })
+    // New node → END
+    newEdges.push({
+      id: `e-${nanoid()}`,
+      source: id,
+      target: 'end',
+      type: 'condition',
+    })
+
+    // Remove old edge to end, add two new ones
+    setEdges((eds) => [
+      ...eds.filter((e) => e.id !== edgeToEnd.id),
+      ...newEdges,
+    ])
+
+    // Sync new edges to store
+    const updatedEdges = [
+      ...edges.filter((e) => e.id !== edgeToEnd.id),
+      ...newEdges,
+    ]
+    setFlowEdges(updatedEdges as any)
+  } else {
+    // No edge to end yet — just add node with edge to end if end exists
+    const endExists = nodes.find((n) => n.id === 'end')
+    if (endExists) {
+      const fallbackEdge: Edge = {
+        id: `e-${nanoid()}`,
+        source: id,
+        target: 'end',
+        type: 'condition',
+      }
+      setEdges((eds) => [...eds, fallbackEdge])
+      setFlowEdges([...edges, fallbackEdge] as any)
+    }
+  }
+
+  setNodes((nds) => [...nds, newNode])
+  addFlowNode(newNode as any)
+}
 
   return (
     <div className="h-full w-full">

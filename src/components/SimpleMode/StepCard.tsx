@@ -9,8 +9,30 @@ import { Step } from '@/src/types/step'
 
 export default function StepCard({ step }: { step: Step }) {
   const { selectedStepId, setSelectedStepId, deleteStep, updateStep } = useBuilderStore()
-  const tc = STEP_TYPE_CONFIG[step.type]
-  const ac = AUTONOMY_CONFIG[step.autonomy_level]
+
+  // 1. Guard Clause: Safety fallback if the step prop is missing or null
+  if (!step) {
+    return (
+      <div className="w-full max-w-sm rounded-xl border border-dashed border-red-500/40 bg-red-950/20 p-4 text-center">
+        <p className="text-xs font-semibold text-red-400 uppercase tracking-wider">Error</p>
+        <p className="text-sm text-red-200/70 mt-1">No step data selected.</p>
+      </div>
+    )
+  }
+
+  // 2. Safe Dictionary Lookups: Fallback configurations to prevent unhandled TypeErrors
+  const tc = STEP_TYPE_CONFIG[step.type] || {
+    bgColor: '#1e293b', // Slate 800 fallback
+    color: '#94a3b8',   // Slate 400 fallback
+    label: 'Unknown Type'
+  }
+
+  const ac = AUTONOMY_CONFIG[step.autonomy_level] || {
+    pct: 0,
+    color: '#64748b',   // Slate 500 fallback
+    label: 'Unknown'
+  }
+
   const isSelected = selectedStepId === step.id
 
   const [editingName, setEditingName] = useState(false)

@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { NSBCInitPayload } from '@/lib/bridge'
 import { AutonomyLevel, FlowEdge, FlowNode, Step } from '../types/step'
 import { BuilderMode, TemplateStatus } from '../types/template'
+import { graphToSteps } from '@/lib/serlializer'
 
 interface BuilderState {
   // Auth / context
@@ -82,7 +83,27 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   defaultAutonomy: 'supervised',
   setTemplateName: (name) => set({ templateName: name, isDirty: true }),
   setTemplateDescription: (desc) => set({ templateDescription: desc, isDirty: true }),
-  setTemplateMode: (mode) => set({ templateMode: mode, isDirty: true }),
+  setTemplateMode: (mode) => {
+  const current = get()
+  // Switching Flow → Simple: sync graph back to steps array
+  if (current.templateMode === 'flow' && mode === 'simple') {
+  
+    const synced = graphToSteps({
+      nodes: current.flowNodes,
+      edges: current.flowEdges,
+    })
+    if (synced.length > 0) {
+      set({ templateMode: mode, steps: synced, isDirty: true })
+      return
+    }
+  }
+  // Switching Simple → Flow: clear graph so FlowCanvas rebuilds from steps
+  if (current.templateMode === 'simple' && mode === 'flow') {
+    set({ templateMode: mode, flowNodes: [], flowEdges: [], isDirty: true })
+    return
+  }
+  set({ templateMode: mode, isDirty: true })
+},
   setDefaultAutonomy: (level) => set({ defaultAutonomy: level, isDirty: true }),
 
   steps: [],
