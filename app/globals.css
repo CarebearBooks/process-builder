@@ -145,3 +145,35 @@
 .react-flow__attribution {
   display: none !important;
 }
+
+/* Builder theme — light mode */
+.builder-light {
+  --builder-bg: #f4f4f5;
+  --builder-surface: #ffffff;
+  --builder-surface2: #f9f9fa;
+  --builder-bar: #ffffff;
+  --builder-border: rgba(0,0,0,0.08);
+  --builder-border2: rgba(0,0,0,0.12);
+  --builder-text: #0f1117;
+  --builder-text2: rgba(0,0,0,0.5);
+  --builder-text3: rgba(0,0,0,0.3);
+  --builder-node-bg: #ffffff;
+  --builder-node-body: #f9f9fa;
+  --builder-canvas-bg: #ededee;
+}
+
+/* Builder theme — dark mode (default) */
+.builder-dark {
+  --builder-bg: #0f1117;
+  --builder-surface: #13151f;
+  --builder-surface2: #1a1d29;
+  --builder-bar: #0a0c12;
+  --builder-border: rgba(255,255,255,0.08);
+  --builder-border2: rgba(255,255,255,0.12);
+  --builder-text: #ffffff;
+  --builder-text2: rgba(255,255,255,0.5);
+  --builder-text3: rgba(255,255,255,0.3);
+  --builder-node-bg: #1a1d29;
+  --builder-node-body: #13151f;
+  --builder-canvas-bg: #0d0f18;
+}

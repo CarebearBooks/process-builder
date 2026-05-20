@@ -2,114 +2,207 @@
 
 import { memo } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
+
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { STEP_TYPE_CONFIG, AUTONOMY_CONFIG } from '@/src/lib/stepConfig'
 import { useBuilderStore } from '@/src/store/builderStore'
 import { Step } from '@/src/types/step'
 
+
 interface StepNodeData {
-  step?: Step // Made optional to account for edge cases where data might be missing
+  step: Step
 }
 
 function StepNode({ data, selected }: NodeProps<StepNodeData>) {
   const { step } = data
-  const { setSelectedStepId, deleteFlowNode } = useBuilderStore()
+  const { setSelectedStepId, deleteFlowNode, theme } = useBuilderStore()
+  const tc = STEP_TYPE_CONFIG[step.type]
+  const ac = AUTONOMY_CONFIG[step.autonomy_level]
 
-  // 1. Guard Clause: If step data is entirely missing or undefined, 
-  // render a fallback UI instead of throwing a runtime TypeError.
-  if (!step) {
-    return (
-      <div className="w-64 rounded-xl border border-dashed border-red-500/40 bg-red-950/20 p-4 text-center">
-        <p className="text-xs font-semibold text-red-400 uppercase tracking-wider">Error</p>
-        <p className="text-sm text-red-200/70 mt-1">Missing step configuration data.</p>
-      </div>
-    )
-  }
+  const isDark = theme === 'dark'
 
-  // 2. Safe Configuration Extraction: If step.type or step.autonomy_level 
-  // does not match keys in your config dictionaries, fall back to safe defaults.
-  const tc = STEP_TYPE_CONFIG[step.type] || {
-    bgColor: '#1e293b',    // Slate-800
-    color: '#94a3b8',      // Slate-400
-    label: 'Unknown Type'
-  }
-
-  const ac = AUTONOMY_CONFIG[step.autonomy_level] || {
-    pct: 0,
-    color: '#64748b',      // Slate-500
-    label: 'Unknown'
-  }
+  const nodeBg = isDark ? '#1a1d29' : '#ffffff'
+  const bodyBg = isDark ? '#13151f' : '#f9f9fa'
+  const borderColor = selected
+    ? 'rgba(59,130,246,0.7)'
+    : isDark
+    ? 'rgba(255,255,255,0.1)'
+    : 'rgba(0,0,0,0.1)'
+  const descColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.45)'
+  const autoBarBg = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)'
+  const autoLabelColor = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)'
+  const deleteColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)'
 
   return (
     <div
       onClick={() => setSelectedStepId(step.id)}
-      className={cn(
-        'w-64 rounded-xl border cursor-pointer transition-all duration-150 shadow-lg',
-        selected
-          ? 'border-blue-500/70 shadow-blue-500/20'
-          : 'border-white/[0.1] hover:border-white/25'
-      )}
+      style={{
+        width: 230,
+        borderRadius: 10,
+        border: `1.5px solid ${borderColor}`,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        background: nodeBg,
+        boxShadow: selected
+          ? '0 0 0 1px rgba(59,130,246,0.25)'
+          : isDark
+          ? '0 2px 8px rgba(0,0,0,0.3)'
+          : '0 2px 8px rgba(0,0,0,0.08)',
+        transition: 'border-color 0.15s',
+      }}
     >
-      {/* Input handle — top center */}
+      {/* Input handle — top */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-3 !h-3 !bg-white/20 !border-white/30 hover:!bg-blue-400 transition-colors"
+        style={{
+          width: 10,
+          height: 10,
+          background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
+          border: isDark ? '2px solid rgba(255,255,255,0.25)' : '2px solid rgba(0,0,0,0.2)',
+          borderRadius: '50%',
+        }}
       />
 
       {/* Header */}
       <div
-        className="flex items-start gap-2 rounded-t-xl px-3 py-2.5"
-        style={{ background: tc.bgColor }}
+        style={{
+          background: tc.bgColor,
+          padding: '8px 10px 7px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 8,
+        }}
       >
-        <span
-          className="mt-0.5 h-2 w-2 shrink-0 rounded-sm"
-          style={{ background: tc.color }}
+        <div
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 2,
+            background: tc.color,
+            flexShrink: 0,
+            marginTop: 5,
+          }}
         />
-        <div className="flex-1 min-w-0">
-          <p
-            className="text-[9px] font-semibold uppercase tracking-wider"
-            style={{ color: tc.color }}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 600,
+              letterSpacing: '0.8px',
+              textTransform: 'uppercase',
+              color: tc.color,
+              marginBottom: 2,
+            }}
           >
             {tc.label}
-          </p>
-          <p className="text-sm font-medium text-white leading-snug truncate">
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: isDark ? '#ffffff' : '#0f1117',
+              lineHeight: 1.3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {step.name}
-          </p>
+          </div>
         </div>
         <button
           onClick={(e) => {
             e.stopPropagation()
             deleteFlowNode(step.id)
           }}
-          className="mt-0.5 rounded p-0.5 text-white/20 hover:bg-white/10 hover:text-white/60 transition-colors"
+          style={{
+            marginTop: 2,
+            padding: 2,
+            borderRadius: 4,
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            color: deleteColor,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
+            e.currentTarget.style.color = '#f87171'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = deleteColor
+          }}
         >
-          <X className="h-3 w-3" />
+          <X size={12} />
         </button>
       </div>
 
       {/* Body */}
-      <div className="px-3 py-2 bg-[#1a1d29] rounded-b-xl">
-        <p className="text-[11px] text-white/35 leading-relaxed truncate">
+      <div style={{ background: bodyBg, padding: '7px 10px 9px' }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: descColor,
+            lineHeight: 1.4,
+            marginBottom: 7,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
           {step.description}
-        </p>
-        <div className="mt-2 flex items-center gap-2">
-          <div className="flex-1 h-1 rounded-full bg-white/[0.07]">
+        </div>
+
+        {/* Autonomy bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div
+            style={{
+              flex: 1,
+              height: 2,
+              background: autoBarBg,
+              borderRadius: 2,
+              overflow: 'hidden',
+            }}
+          >
             <div
-              className="h-1 rounded-full"
-              style={{ width: `${ac.pct}%`, background: ac.color }}
+              style={{
+                width: `${ac.pct}%`,
+                height: '100%',
+                background: ac.color,
+                borderRadius: 2,
+                transition: 'width 0.3s',
+              }}
             />
           </div>
-          <span className="text-[10px] text-white/25">{ac.label}</span>
+          <span
+            style={{
+              fontSize: 9,
+              color: autoLabelColor,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {ac.label}
+          </span>
         </div>
       </div>
 
-      {/* Output handle — bottom center */}
+      {/* Output handle — bottom */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-3 !h-3 !bg-white/20 !border-white/30 hover:!bg-emerald-400 transition-colors"
+        style={{
+          width: 10,
+          height: 10,
+          background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
+          border: isDark ? '2px solid rgba(255,255,255,0.25)' : '2px solid rgba(0,0,0,0.2)',
+          borderRadius: '50%',
+        }}
       />
     </div>
   )

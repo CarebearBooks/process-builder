@@ -1,53 +1,54 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useBuilderStore } from '@/src/store/builderStore'
+
 import { sendToParent } from '@/lib/bridge'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { CheckIcon, CloudIcon, PencilIcon, Undo2, Redo2, AlertCircle } from 'lucide-react'
+import {
+  CheckIcon, CloudIcon, PencilIcon,
+  Undo2, Redo2, AlertCircle, Sun, Moon,
+} from 'lucide-react'
 import StepPalette from './StepPalette'
 
 import FlowCanvas from './FlowMode/FlowCanvas'
 import NewTemplateWizard from './NewTemplateWizard'
 import { useTemplate } from '@/hooks/useTemplate'
-
 import { createClient } from '@/lib/supabase'
 import { validateTemplate } from '@/lib/validator'
-import ConfigPanel from '../configure/ConfigurePanel'
-import StepList from '@/src/components/SimpleMode/StepList'
 import { useBuilderKeyboard } from '@/hooks/createBuilderKey'
+import StepList from '@/src/components/SimpleMode/StepList'
+import { useBuilderStore } from '@/src/store/builderStore'
+import ConfigPanel from '../configure/ConfigurePanel'
 
 export default function BuilderShell() {
   useBuilderKeyboard()
-  // If steps already exist in store (e.g. after hot reload), skip wizard
-  useEffect(() => {
-    if (steps.length > 0 && !wizardComplete) {
-      useBuilderStore.setState({ wizardComplete: true })
-    }
-  }, [])
 
   const {
-  templateId, templateName, setTemplateName,
-  templateMode, setTemplateMode,
-  templateStatus, templateDescription,
-  serviceName, serviceVertical,
-  isSaving, lastSavedAt, isDirty,
-  steps,                        
-  wizardComplete,
-  undo, redo, canUndo, canRedo,
-  initPayload,
-} = useBuilderStore()
+    templateId, templateName, setTemplateName,
+    templateMode, setTemplateMode,
+    templateStatus, templateDescription,
+    serviceName, serviceVertical,
+    isSaving, lastSavedAt, isDirty,
+    steps, wizardComplete,
+    undo, redo, canUndo, canRedo,
+    initPayload, theme, setTheme,
+  } = useBuilderStore()
 
   const [editingName, setEditingName] = useState(false)
   const [showValidation, setShowValidation] = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
   const { save } = useTemplate()
 
-  
+  // If steps already exist in store (e.g. after hot reload), skip wizard
+  useEffect(() => {
+    if (steps.length > 0 && !wizardComplete) {
+      useBuilderStore.setState({ wizardComplete: true })
+    }
+  }, [])
 
   useEffect(() => {
     if (editingName) nameRef.current?.focus()
@@ -90,15 +91,28 @@ export default function BuilderShell() {
     ? 'Saving…'
     : lastSavedAt
     ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-    : isDirty ? 'Unsaved changes'
+    : isDirty
+    ? 'Unsaved changes'
     : 'All changes saved'
 
-  return (
-    <div className="flex h-screen flex-col bg-[#0f1117] overflow-hidden">
+  const isDark = theme === 'dark'
 
-      {/* Validation banner */}
+  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+  const barBg = isDark ? '#0a0c12' : '#ffffff'
+  const textPrimary = isDark ? '#ffffff' : '#0f1117'
+  const textMuted = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.35)'
+  const hoverBg = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)'
+
+  return (
+    <div
+      className="flex h-screen flex-col overflow-hidden"
+      style={{ background: isDark ? '#0f1117' : '#f4f4f5' }}
+    >
+
+      {/* Validation error banner */}
       {showValidation && !validation.valid && (
-        <div className="flex items-center gap-3 bg-rose-500/10 border-b border-rose-500/20 px-4 py-2">
+        <div className="flex items-center gap-3 px-4 py-2 border-b"
+          style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' }}>
           <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />
           <div className="flex-1">
             {validation.errors.map((e, i) => (
@@ -108,42 +122,42 @@ export default function BuilderShell() {
           <button
             onClick={() => setShowValidation(false)}
             className="text-rose-400/50 hover:text-rose-400 text-xs"
-          >
-            ✕
-          </button>
+          >✕</button>
         </div>
       )}
 
-      {/* Warnings banner */}
+      {/* Validation warnings banner */}
       {showValidation && validation.valid && validation.warnings.length > 0 && (
-        <div className="flex items-center gap-3 bg-amber-500/10 border-b border-amber-500/20 px-4 py-2">
+        <div className="flex items-center gap-3 px-4 py-2 border-b"
+          style={{ background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' }}>
           <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-          <span className="text-xs text-amber-400">
+          <span className="text-xs text-amber-400 flex-1">
             {validation.warnings[0]}
             {validation.warnings.length > 1 && ` (+${validation.warnings.length - 1} more)`}
           </span>
           <button
             onClick={() => setShowValidation(false)}
-            className="ml-auto text-amber-400/50 hover:text-amber-400 text-xs"
-          >
-            ✕
-          </button>
+            className="text-amber-400/50 hover:text-amber-400 text-xs ml-auto"
+          >✕</button>
         </div>
       )}
 
-      {/* TOP BAR */}
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-white/[0.08] bg-[#0a0c12] px-4">
+      {/* ── TOP BAR ── */}
+      <header
+        className="flex h-12 shrink-0 items-center gap-3 border-b px-4"
+        style={{ background: barBg, borderColor }}
+      >
 
         {/* Service breadcrumb */}
         {serviceName && (
-          <>
-            <div className="flex items-center gap-1.5 text-xs text-white/30">
-              <span>{serviceVertical}</span>
-              <span className="text-white/15">›</span>
-              <span className="text-white/50">{serviceName}</span>
-              <span className="text-white/15">›</span>
-            </div>
-          </>
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: textMuted }}>
+            <span>{serviceVertical}</span>
+            <span style={{ opacity: 0.4 }}>›</span>
+            <span style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)' }}>
+              {serviceName}
+            </span>
+            <span style={{ opacity: 0.4 }}>›</span>
+          </div>
         )}
 
         {/* Template name */}
@@ -155,24 +169,33 @@ export default function BuilderShell() {
               onChange={(e) => setTemplateName(e.target.value)}
               onBlur={() => setEditingName(false)}
               onKeyDown={(e) => e.key === 'Enter' && setEditingName(false)}
-              className="h-7 w-52 border-white/20 bg-white/5 text-sm text-white focus-visible:ring-blue-500"
+              className="h-7 w-52 text-sm focus-visible:ring-blue-500"
+              style={{
+                background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)',
+                color: textPrimary,
+              }}
             />
           ) : (
             <button
               onClick={() => setEditingName(true)}
-              className="flex items-center gap-1.5 rounded px-2 py-1 text-sm font-medium text-white hover:bg-white/5"
+              className="flex items-center gap-1.5 rounded px-2 py-1 text-sm font-medium transition-colors"
+              style={{ color: textPrimary }}
+              onMouseEnter={e => (e.currentTarget.style.background = hoverBg)}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               {templateName}
-              <PencilIcon className="h-3 w-3 text-white/30" />
+              <PencilIcon className="h-3 w-3" style={{ color: textMuted }} />
             </button>
           )}
           <Badge
             variant="outline"
-            className={`text-[10px] border-white/10 ${
+            className={`text-[10px] ${
               templateStatus === 'active'
                 ? 'text-emerald-400 border-emerald-400/30'
-                : 'text-zinc-500'
+                : ''
             }`}
+            style={templateStatus !== 'active' ? { color: textMuted, borderColor } : {}}
           >
             {templateStatus}
           </Badge>
@@ -183,41 +206,56 @@ export default function BuilderShell() {
           value={templateMode}
           onValueChange={(v) => {
             const newMode = v as 'simple' | 'flow'
-            if (newMode === 'flow') {
-              useBuilderStore.getState().setFlowNodes([])
-              useBuilderStore.getState().setFlowEdges([])
-            }
             setTemplateMode(newMode)
           }}
           className="ml-2"
         >
-          <TabsList className="h-7 bg-white/5 border border-white/10">
-            <TabsTrigger value="simple" className="h-5 px-3 text-xs data-[state=active]:bg-white/10">
+          <TabsList
+            className="h-7"
+            style={{
+              background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)',
+              border: `1px solid ${borderColor}`,
+            }}
+          >
+            <TabsTrigger
+              value="simple"
+              className="h-5 px-3 text-xs data-[state=active]:bg-white/10"
+              style={{ color: textMuted }}
+            >
               Simple
             </TabsTrigger>
-            <TabsTrigger value="flow" className="h-5 px-3 text-xs data-[state=active]:bg-white/10">
+            <TabsTrigger
+              value="flow"
+              className="h-5 px-3 text-xs data-[state=active]:bg-white/10"
+              style={{ color: textMuted }}
+            >
               Flow
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <span className="text-xs text-white/25">
+        <span className="text-xs ml-1" style={{ color: textMuted }}>
           {steps.length} step{steps.length !== 1 ? 's' : ''}
         </span>
 
         <div className="flex-1" />
 
-        <span className="flex items-center gap-1.5 text-xs text-white/30">
+        {/* Save status */}
+        <span className="flex items-center gap-1.5 text-xs" style={{ color: textMuted }}>
           <CloudIcon className="h-3.5 w-3.5" />
           {saveLabel}
         </span>
 
+        {/* Undo / Redo */}
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => canUndo() && undo()}
             disabled={!canUndo()}
             title="Undo (Ctrl+Z)"
-            className="flex h-7 w-7 items-center justify-center rounded text-white/40 hover:bg-white/10 hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+            style={{ color: textMuted }}
+            onMouseEnter={e => !e.currentTarget.disabled && (e.currentTarget.style.background = hoverBg)}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
             <Undo2 className="h-3.5 w-3.5" />
           </button>
@@ -225,19 +263,44 @@ export default function BuilderShell() {
             onClick={() => canRedo() && redo()}
             disabled={!canRedo()}
             title="Redo (Ctrl+Shift+Z)"
-            className="flex h-7 w-7 items-center justify-center rounded text-white/40 hover:bg-white/10 hover:text-white/80 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+            style={{ color: textMuted }}
+            onMouseEnter={e => !e.currentTarget.disabled && (e.currentTarget.style.background = hoverBg)}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
             <Redo2 className="h-3.5 w-3.5" />
           </button>
         </div>
 
-        <Separator orientation="vertical" className="h-5 bg-white/10" />
+        {/* Theme toggle */}
+        <button
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          className="flex h-7 w-7 items-center justify-center rounded transition-colors"
+          style={{ color: textMuted }}
+          onMouseEnter={e => (e.currentTarget.style.background = hoverBg)}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+        >
+          {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+        </button>
 
+        <Separator
+          orientation="vertical"
+          className="h-5"
+          style={{ background: borderColor }}
+        />
+
+        {/* Save + Publish */}
         <Button
           variant="outline"
           size="sm"
           onClick={handleSave}
-          className="h-7 border-white/15 bg-white/5 text-xs text-white hover:bg-white/10"
+          className="h-7 text-xs"
+          style={{
+            background: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+            borderColor,
+            color: textPrimary,
+          }}
         >
           Save Draft
         </Button>
@@ -251,7 +314,7 @@ export default function BuilderShell() {
         </Button>
       </header>
 
-      {/* BODY */}
+      {/* ── BODY ── */}
       <div className="flex flex-1 min-h-0">
         {templateMode === 'simple' && <StepPalette />}
         <main className="flex-1 overflow-y-auto">

@@ -1,9 +1,9 @@
-import { create } from 'zustand'
-
-import type { NSBCInitPayload } from '@/lib/bridge'
-import { AutonomyLevel, FlowEdge, FlowNode, Step } from '../types/step'
-import { BuilderMode, TemplateStatus } from '../types/template'
+import { NSBCInitPayload } from '@/lib/bridge'
 import { graphToSteps } from '@/lib/serlializer'
+import { create } from 'zustand'
+import { AutonomyLevel, Step, FlowNode, FlowEdge } from '../types/step'
+import { BuilderMode, TemplateStatus } from '../types/template'
+
 
 interface BuilderState {
   // Auth / context
@@ -13,22 +13,22 @@ interface BuilderState {
   // Template meta
   templateId: string | null
   templateName: string
+  templateDescription: string
   templateMode: BuilderMode
   templateStatus: TemplateStatus
   defaultAutonomy: AutonomyLevel
-  setTemplateName: (name: string) => void
-  setTemplateDescription: (desc: string) => void
-  setTemplateMode: (mode: BuilderMode) => void
-  setDefaultAutonomy: (level: AutonomyLevel) => void
-  templateDescription: string
   serviceId: string | null
   serviceName: string
   serviceVertical: string
   wizardComplete: boolean
+  setTemplateName: (name: string) => void
+  setTemplateDescription: (desc: string) => void
+  setTemplateMode: (mode: BuilderMode) => void
+  setDefaultAutonomy: (level: AutonomyLevel) => void
   setServiceContext: (id: string, name: string, vertical: string) => void
   setWizardComplete: (v: boolean) => void
 
-  // Steps
+  // Steps (Simple Mode)
   steps: Step[]
   setSteps: (steps: Step[], pushHistory?: boolean) => void
   addStep: (step: Step, insertAt?: number) => void
@@ -67,9 +67,18 @@ interface BuilderState {
   redo: () => void
   canUndo: () => boolean
   canRedo: () => boolean
+
+  // Theme
+  theme: 'dark' | 'light'
+  setTheme: (t: 'dark' | 'light') => void
 }
 
 const MAX_HISTORY = 50
+
+const persistedTheme =
+  typeof window !== 'undefined'
+    ? ((localStorage.getItem('nsbc-builder-theme') as 'dark' | 'light' | null) ?? 'dark')
+    : 'dark'
 
 export const useBuilderStore = create<BuilderState>((set, get) => ({
   initPayload: null,
@@ -81,31 +90,41 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   templateMode: 'simple',
   templateStatus: 'draft',
   defaultAutonomy: 'supervised',
+  serviceId: null,
+  serviceName: '',
+  serviceVertical: '',
+  wizardComplete: false,
+
   setTemplateName: (name) => set({ templateName: name, isDirty: true }),
   setTemplateDescription: (desc) => set({ templateDescription: desc, isDirty: true }),
+
   setTemplateMode: (mode) => {
-  const current = get()
-  // Switching Flow → Simple: sync graph back to steps array
-  if (current.templateMode === 'flow' && mode === 'simple') {
-  
-    const synced = graphToSteps({
-      nodes: current.flowNodes,
-      edges: current.flowEdges,
-    })
-    if (synced.length > 0) {
-      set({ templateMode: mode, steps: synced, isDirty: true })
+    const current = get()
+    // Flow → Simple: sync graph back to steps array
+    if (current.templateMode === 'flow' && mode === 'simple') {
+      const synced = graphToSteps({
+        nodes: current.flowNodes,
+        edges: current.flowEdges,
+      })
+      if (synced.length > 0) {
+        set({ templateMode: mode, steps: synced, isDirty: true })
+        return
+      }
+    }
+    // Simple → Flow: clear graph so FlowCanvas rebuilds from steps
+    if (current.templateMode === 'simple' && mode === 'flow') {
+      set({ templateMode: mode, flowNodes: [], flowEdges: [], isDirty: true })
       return
     }
-  }
-  // Switching Simple → Flow: clear graph so FlowCanvas rebuilds from steps
-  if (current.templateMode === 'simple' && mode === 'flow') {
-    set({ templateMode: mode, flowNodes: [], flowEdges: [], isDirty: true })
-    return
-  }
-  set({ templateMode: mode, isDirty: true })
-},
-  setDefaultAutonomy: (level) => set({ defaultAutonomy: level, isDirty: true }),
+    set({ templateMode: mode, isDirty: true })
+  },
 
+  setDefaultAutonomy: (level) => set({ defaultAutonomy: level, isDirty: true }),
+  setServiceContext: (id, name, vertical) =>
+    set({ serviceId: id, serviceName: name, serviceVertical: vertical }),
+  setWizardComplete: (v) => set({ wizardComplete: v }),
+
+  // Steps
   steps: [],
   setSteps: (steps, push = true) => {
     if (push) get().pushHistory(get().steps)
@@ -136,9 +155,50 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     }))
   },
 
+  // Flow Mode
+  flowNodes: [],
+  flowEdges: [],
+  setFlowNodes: (nodes) => set({ flowNodes: nodes, isDirty: true }),
+  setFlowEdges: (edges) => set({ flowEdges: edges, isDirty: true }),
+  addFlowNode: (node) =>
+    set((state) => ({
+      flowNodes: [...state.flowNodes, node],
+      isDirty: true,
+    })),
+  updateFlowNode: (id, data) =>
+    set((state) => ({
+      flowNodes: state.flowNodes.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, ...data } } : n
+      ),
+      isDirty: true,
+    })),
+  deleteFlowNode: (id) =>
+    set((state) => ({
+      flowNodes: state.flowNodes.filter((n) => n.id !== id),
+      flowEdges: state.flowEdges.filter(
+        (e) => e.source !== id && e.target !== id
+      ),
+      // Also remove from steps so Simple Mode stays in sync
+      steps: state.steps.filter((s) => s.id !== id),
+      selectedStepId: state.selectedStepId === id ? null : state.selectedStepId,
+      isDirty: true,
+    })),
+  connectFlowNodes: (edge) =>
+    set((state) => ({
+      flowEdges: [...state.flowEdges, edge],
+      isDirty: true,
+    })),
+  deleteFlowEdge: (id) =>
+    set((state) => ({
+      flowEdges: state.flowEdges.filter((e) => e.id !== id),
+      isDirty: true,
+    })),
+
+  // Selection
   selectedStepId: null,
   setSelectedStepId: (id) => set({ selectedStepId: id }),
 
+  // Save state
   isDirty: false,
   isSaving: false,
   lastSavedAt: null,
@@ -146,55 +206,13 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
   setLastSavedAt: (d) => set({ lastSavedAt: d }),
   markDirty: () => set({ isDirty: true }),
   markClean: () => set({ isDirty: false }),
-  flowNodes: [],
-flowEdges: [],
-setFlowNodes: (nodes) => set({ flowNodes: nodes, isDirty: true }),
-setFlowEdges: (edges) => set({ flowEdges: edges, isDirty: true }),
-addFlowNode: (node) =>
-  set((state) => ({
-    flowNodes: [...state.flowNodes, node],
-    isDirty: true,
-  })),
-updateFlowNode: (id, data) =>
-  set((state) => ({
-    flowNodes: state.flowNodes.map((n) =>
-      n.id === id ? { ...n, data: { ...n.data, ...data } } : n
-    ),
-    isDirty: true,
-  })),
-deleteFlowNode: (id) =>
-  set((state) => ({
-    flowNodes: state.flowNodes.filter((n) => n.id !== id),
-    flowEdges: state.flowEdges.filter(
-      (e) => e.source !== id && e.target !== id
-    ),
-    isDirty: true,
-  })),
-connectFlowNodes: (edge) =>
-  set((state) => ({
-    flowEdges: [...state.flowEdges, edge],
-    isDirty: true,
-  })),
-deleteFlowEdge: (id) =>
-  set((state) => ({
-    flowEdges: state.flowEdges.filter((e) => e.id !== id),
-    isDirty: true,
-  })),
-  serviceId: null,
-  serviceName: '',
-  serviceVertical: '',
-  wizardComplete: false,
-  setServiceContext: (id, name, vertical) =>
-  set({ serviceId: id, serviceName: name, serviceVertical: vertical }),
-  setWizardComplete: (v) => set({ wizardComplete: v }),
 
-  // ── History ──────────────────────────────────────────
+  // History
   history: [],
   historyIndex: -1,
 
   pushHistory: (steps) => {
     const { history, historyIndex } = get()
-    // Slice off any redo states ahead of current index
     const trimmed = history.slice(0, historyIndex + 1)
     const next = [...trimmed, steps].slice(-MAX_HISTORY)
     set({ history: next, historyIndex: next.length - 1 })
@@ -204,26 +222,25 @@ deleteFlowEdge: (id) =>
     const { history, historyIndex } = get()
     if (historyIndex < 0) return
     const steps = history[historyIndex]
-    set({
-      steps,
-      historyIndex: historyIndex - 1,
-      isDirty: true,
-      selectedStepId: null,
-    })
+    set({ steps, historyIndex: historyIndex - 1, isDirty: true, selectedStepId: null })
   },
 
   redo: () => {
     const { history, historyIndex } = get()
     if (historyIndex >= history.length - 1) return
     const steps = history[historyIndex + 1]
-    set({
-      steps,
-      historyIndex: historyIndex + 1,
-      isDirty: true,
-      selectedStepId: null,
-    })
+    set({ steps, historyIndex: historyIndex + 1, isDirty: true, selectedStepId: null })
   },
 
   canUndo: () => get().historyIndex >= 0,
   canRedo: () => get().historyIndex < get().history.length - 1,
+
+  // Theme
+  theme: persistedTheme,
+  setTheme: (t) => {
+    set({ theme: t })
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nsbc-builder-theme', t)
+    }
+  },
 }))
