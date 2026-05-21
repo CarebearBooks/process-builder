@@ -22,18 +22,12 @@ export default function StepList() {
   const { steps, setSteps, theme } = useBuilderStore()
 
   const isDark = theme === 'dark'
-  const connectorColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
-  const emptyTextColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'
-  const emptySubColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)'
-  const emptyBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
     const oldIndex = steps.findIndex((s) => s.id === active.id)
@@ -41,28 +35,66 @@ export default function StepList() {
     setSteps(arrayMove(steps, oldIndex, newIndex))
   }
 
-  return (
-    <div className="flex flex-col items-center py-8 px-4 min-h-full">
+  // Connector line between nodes
+  const Connector = () => (
+    <div className="flex flex-col items-center">
+      <div
+        style={{
+          width: '2px',
+          height: '24px',
+          background: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.18)',
+          borderRadius: '1px',
+        }}
+      />
+    </div>
+  )
 
-      {/* START */}
-      <div className="rounded-full border border-blue-500/40 bg-blue-500/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-blue-400">
+  return (
+    <div
+      className="flex flex-col items-center py-8 px-4 min-h-full"
+      style={{ background: isDark ? '#0f1117' : '#f4f4f5' }}
+    >
+      {/* START node */}
+      <div
+        className="rounded-full px-5 py-1.5 text-xs font-bold tracking-widest uppercase"
+        style={{
+          border: `2px solid ${isDark ? '#3b82f6' : '#2a5cff'}`,
+          color: isDark ? '#3b82f6' : '#2a5cff',
+          background: isDark ? 'rgba(59,130,246,0.1)' : 'rgba(42,92,255,0.08)',
+        }}
+      >
         Start
       </div>
 
+      <Connector />
+
+      {/* Top add button */}
+      <AddStepButton insertAt={0} isDark={isDark} />
+
+      <Connector />
+
       {steps.length === 0 ? (
-        <div className="mt-4 flex flex-col items-center gap-3">
-          <div className="h-8 w-px" style={{ background: connectorColor }} />
-          <AddStepButton insertAt={0} />
-          <div className="h-8 w-px" style={{ background: connectorColor }} />
-          <div
-            className="rounded-lg border border-dashed px-10 py-8 text-center"
-            style={{ borderColor: emptyBorder }}
+        /* Empty state */
+        <div
+          className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-10 py-12 text-center"
+          style={{
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)',
+            background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
+          }}
+        >
+          <div className="text-3xl mb-3">✦</div>
+          <p
+            className="text-sm font-medium mb-1"
+            style={{ color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)' }}
           >
-            <p className="text-sm" style={{ color: emptyTextColor }}>No steps yet</p>
-            <p className="mt-1 text-xs" style={{ color: emptySubColor }}>
-              Click a type in the left panel or use + to add
-            </p>
-          </div>
+            No steps yet
+          </p>
+          <p
+            className="text-xs"
+            style={{ color: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)' }}
+          >
+            Click a step type in the left panel or use the + button above
+          </p>
         </div>
       ) : (
         <DndContext
@@ -74,26 +106,31 @@ export default function StepList() {
             items={steps.map((s) => s.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="flex flex-col items-center w-full max-w-sm">
+            <div className="flex flex-col items-center w-full max-w-md gap-0">
               {steps.map((step, index) => (
                 <div key={step.id} className="flex flex-col items-center w-full">
-                  <div className="h-3 w-px" style={{ background: connectorColor }} />
-                  <AddStepButton insertAt={index} />
-                  <div className="h-3 w-px" style={{ background: connectorColor }} />
-                  <SortableStepCard step={step} />
+                  <SortableStepCard step={step} isDark={isDark} />
+                  <Connector />
+                  <AddStepButton insertAt={index + 1} isDark={isDark} />
+                  {index < steps.length - 1 && <Connector />}
                 </div>
               ))}
-              <div className="h-3 w-px" style={{ background: connectorColor }} />
-              <AddStepButton insertAt={steps.length} />
             </div>
           </SortableContext>
         </DndContext>
       )}
 
-      <div className="h-4 w-px" style={{ background: connectorColor }} />
+      <Connector />
 
-      {/* END */}
-      <div className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+      {/* END node */}
+      <div
+        className="rounded-full px-5 py-1.5 text-xs font-bold tracking-widest uppercase"
+        style={{
+          border: `2px solid ${isDark ? '#34d399' : '#059669'}`,
+          color: isDark ? '#34d399' : '#059669',
+          background: isDark ? 'rgba(52,211,153,0.1)' : 'rgba(5,150,105,0.08)',
+        }}
+      >
         End
       </div>
     </div>

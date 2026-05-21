@@ -1,114 +1,119 @@
 'use client'
 
 import { useState } from 'react'
+import { Plus } from 'lucide-react'
 
 import { nanoid } from 'nanoid'
-import { Plus } from 'lucide-react'
-import { STEP_TYPE_CONFIG } from '@/src/lib/stepConfig'
 import { useBuilderStore } from '@/src/store/builderStore'
-import { StepType } from '@/src/types/step'
+import { StepType, Step } from '@/src/types/step'
 
-export default function AddStepButton({ insertAt }: { insertAt: number }) {
+const STEP_TYPES: { type: StepType; label: string; desc: string; color: string; lightColor: string }[] = [
+  { type: 'data',          label: 'Data',          desc: 'Import, fetch, sync',     color: '#3b82f6', lightColor: '#2563eb' },
+  { type: 'ai',            label: 'AI',            desc: 'Analyze, categorize',     color: '#a855f7', lightColor: '#7c3aed' },
+  { type: 'human',         label: 'Human',         desc: 'Review, approve',         color: '#f59e0b', lightColor: '#d97706' },
+  { type: 'communication', label: 'Communication', desc: 'Email, SMS, notify',      color: '#22c55e', lightColor: '#16a34a' },
+  { type: 'logic',         label: 'Logic',         desc: 'Branch, condition',       color: '#f43f5e', lightColor: '#e11d48' },
+  { type: 'reporting',     label: 'Reporting',     desc: 'Generate, export',        color: '#06b6d4', lightColor: '#0891b2' },
+]
+
+interface Props {
+  insertAt: number
+  isDark: boolean
+}
+
+export default function AddStepButton({ insertAt, isDark }: Props) {
   const [open, setOpen] = useState(false)
-  const { addStep, theme } = useBuilderStore()
+  const { addStep, defaultAutonomy } = useBuilderStore()
 
-  const isDark = theme === 'dark'
-  const borderColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'
-  const textColor = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)'
-  const popoverBg = isDark ? '#1a1d29' : '#ffffff'
-  const popoverBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
-  const itemText = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)'
-  const itemSubText = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.35)'
-  const itemHover = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'
-
-  const handlePick = (type: StepType) => {
-    const cfg = STEP_TYPE_CONFIG[type]
-    addStep(
-      {
-        id: nanoid(),
-        type,
-        name: `${cfg.label} Step`,
-        description: cfg.description,
-        autonomy_level: 'supervised',
-        assigned_role: type === 'human' ? 'accountant' : 'ai_agent',
-        config: {},
-      },
-      insertAt
-    )
+  function handleAdd(type: StepType) {
+    const newStep: Step = {
+      id:            nanoid(),
+      type,
+      name:          STEP_TYPES.find(t => t.type === type)?.label + ' Step',
+      description:   STEP_TYPES.find(t => t.type === type)?.desc ?? '',
+      autonomy_level: defaultAutonomy,
+      assigned_role: type === 'human' ? 'accountant' : 'ai_agent',
+      config:        {},
+    }
+    addStep(newStep, insertAt)
     setOpen(false)
   }
 
+  const borderColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)'
+  const dotColor    = isDark ? 'rgba(255,255,255,0.2)'  : 'rgba(0,0,0,0.25)'
+  const popupBg     = isDark ? '#1e2130' : '#ffffff'
+  const popupBorder = isDark ? 'rgba(255,255,255,0.1)'  : 'rgba(0,0,0,0.12)'
+  const textMuted   = isDark ? 'rgba(255,255,255,0.4)'  : 'rgba(0,0,0,0.45)'
+  const textMain    = isDark ? '#ffffff' : '#0f1117'
+  const hoverBg     = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'
+
   return (
-    <div className="relative">
+    <div className="relative flex flex-col items-center">
       <button
-        onClick={() => setOpen(!open)}
+        className="flex h-5 w-5 items-center justify-center rounded-full transition-all duration-150"
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 20,
-          height: 20,
-          borderRadius: '50%',
-          border: `1.5px dashed ${borderColor}`,
-          color: textColor,
-          background: 'transparent',
-          cursor: 'pointer',
-          transition: 'all 0.15s',
+          border: `1.5px dashed ${open ? '#3b82f6' : borderColor}`,
+          color:  open ? '#3b82f6' : dotColor,
+          background: open ? 'rgba(59,130,246,0.1)' : 'transparent',
         }}
+        onClick={() => setOpen(!open)}
         onMouseEnter={e => {
-          e.currentTarget.style.borderColor = 'rgba(59,130,246,0.6)'
-          e.currentTarget.style.color = '#60a5fa'
+          if (!open) {
+            e.currentTarget.style.borderColor = '#3b82f6'
+            e.currentTarget.style.color = '#3b82f6'
+          }
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.borderColor = borderColor
-          e.currentTarget.style.color = textColor
+          if (!open) {
+            e.currentTarget.style.borderColor = borderColor
+            e.currentTarget.style.color = dotColor
+          }
         }}
       >
-        <Plus size={11} />
+        <Plus className="h-2.5 w-2.5" />
       </button>
 
       {open && (
         <>
+          {/* Backdrop */}
           <div
             className="fixed inset-0 z-10"
             onClick={() => setOpen(false)}
           />
+          {/* Popup */}
           <div
-            className="absolute left-7 top-0 z-20 w-48 rounded-xl p-1.5 shadow-xl"
+            className="absolute top-7 z-20 rounded-xl p-2 shadow-xl"
             style={{
-              background: popoverBg,
-              border: `1px solid ${popoverBorder}`,
+              background: popupBg,
+              border: `1px solid ${popupBorder}`,
+              width: '200px',
+              boxShadow: isDark
+                ? '0 8px 32px rgba(0,0,0,0.5)'
+                : '0 8px 24px rgba(0,0,0,0.12)',
             }}
           >
-            {(
-              Object.entries(STEP_TYPE_CONFIG) as [
-                StepType,
-                (typeof STEP_TYPE_CONFIG)[StepType]
-              ][]
-            ).map(([type, cfg]) => (
+            <p
+              className="text-[10px] font-semibold tracking-widest uppercase px-2 pb-1.5"
+              style={{ color: textMuted }}
+            >
+              Add Step
+            </p>
+            {STEP_TYPES.map(t => (
               <button
-                key={type}
-                onClick={() => handlePick(type)}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors"
-                style={{ color: itemText }}
-                onMouseEnter={e =>
-                  (e.currentTarget.style.background = itemHover)
-                }
-                onMouseLeave={e =>
-                  (e.currentTarget.style.background = 'transparent')
-                }
+                key={t.type}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors text-left"
+                style={{ background: 'transparent' }}
+                onClick={() => handleAdd(t.type)}
+                onMouseEnter={e => (e.currentTarget.style.background = hoverBg)}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <span
-                  className="h-2 w-2 shrink-0 rounded-sm"
-                  style={{ background: cfg.color }}
+                <div
+                  className="h-2 w-2 rounded-sm flex-shrink-0"
+                  style={{ background: isDark ? t.color : t.lightColor }}
                 />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 500 }}>
-                    {cfg.label}
-                  </div>
-                  <div style={{ fontSize: 10, color: itemSubText }}>
-                    {cfg.description}
-                  </div>
+                  <div className="text-xs font-medium" style={{ color: textMain }}>{t.label}</div>
+                  <div className="text-[10px]" style={{ color: textMuted }}>{t.desc}</div>
                 </div>
               </button>
             ))}

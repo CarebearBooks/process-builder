@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { createClient } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/supabase'
 import { useBuilderStore } from '@/src/store/builderStore'
+
 
 const AUTOSAVE_DELAY = 1500 // ms after last change before saving
 
@@ -31,18 +32,18 @@ export function useTemplate() {
   const save = useCallback(async () => {
     if (!initPayload || isSaving) return
 
-    const supabase = createClient()
+    const supabase = getSupabaseClient(initPayload.token)
     setIsSaving(true)
 
     const payload = {
-      firm_id: initPayload.firmId === 'dev-firm-id' ? null : initPayload.firmId,
-      service_id: initPayload.serviceId === 'dev-service-id' ? null : initPayload.serviceId,
-      name: templateName,
-      description: templateDescription,
-      mode: templateMode,
+      firm_id:          initPayload.firmId === 'dev-firm-id' ? null : initPayload.firmId,
+      service_id:       initPayload.serviceId === 'dev-service-id' ? null : initPayload.serviceId,
+      name:             templateName,
+      description:      templateDescription,
+      mode:             templateMode,
       default_autonomy: defaultAutonomy,
-      steps_json: steps,
-      updated_at: new Date().toISOString(),
+      steps_json:       steps,
+      updated_at:       new Date().toISOString(),
     }
 
     try {
@@ -59,7 +60,7 @@ export function useTemplate() {
         if (initPayload.firmId !== 'dev-firm-id') {
           const { data, error } = await supabase
             .from('process_templates')
-            .insert({ ...payload, created_by: initPayload.userId })
+            .insert({ ...payload, created_by: initPayload.userId ?? null })
             .select('id')
             .single()
 
@@ -87,48 +88,44 @@ export function useTemplate() {
   // Debounced autosave — fires 1.5s after last change
   useEffect(() => {
     if (!isDirty) return
-
     if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      save()
-    }, AUTOSAVE_DELAY)
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
+    timerRef.current = setTimeout(() => { save() }, AUTOSAVE_DELAY)
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [isDirty, steps, templateName, save])
 
   // Load existing template on mount if templateId provided
   useEffect(() => {
-  // Skip if dev mode or no real templateId
-  if (!initPayload?.templateId) return
-  if (initPayload.templateId === 'dev-template-id') return
-  if (initPayload.firmId === 'dev-firm-id') return
+    if (!initPayload?.templateId) return
+    if (initPayload.templateId === 'dev-template-id') return
+    if (initPayload.firmId === 'dev-firm-id') return
 
-  const load = async () => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('process_templates')
-      .select('*')
-      .eq('id', initPayload.templateId)
-      .single()
+    const load = async () => {
+      const supabase = getSupabaseClient(initPayload.token)
 
-    if (error || !data) return
+      const { data, error } = await supabase
+        .from('process_templates')
+        .select('*')
+        .eq('id', initPayload.templateId)
+        .single()
 
-    useBuilderStore.setState({
-      templateId: data.id,
-      templateName: data.name,
-      templateDescription: data.description ?? '',
-      templateMode: data.mode,
-      defaultAutonomy: data.default_autonomy,
-      steps: data.steps_json ?? [],
-      serviceName: data.service_name ?? '',
-      wizardComplete: true,   // ← skip wizard when loading existing template
-    })
-  }
+      if (error || !data) {
+        console.error('[useTemplate] Load failed:', error)
+        return
+      }
 
-  load()
-}, [initPayload])
+      useBuilderStore.setState({
+        templateId:          data.id,
+        templateName:        data.name,
+        templateDescription: data.description ?? '',
+        templateMode:        data.mode,
+        defaultAutonomy:     data.default_autonomy,
+        steps:               data.steps_json ?? [],
+        wizardComplete:      true, // skip wizard when loading existing template
+      })
+    }
+
+    load()
+  }, [initPayload])
 
   return { save }
 }

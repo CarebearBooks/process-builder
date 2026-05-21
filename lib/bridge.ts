@@ -1,33 +1,31 @@
 export interface NSBCInitPayload {
-  token: string
-  firmId: string
-  clientId: string
+  token:      string
+  firmId:     string
   templateId: string | null
-  serviceId: string
-  userId: string
-  mode: 'simple' | 'flow'
+  serviceId:  string
+  mode:       'simple' | 'flow'
+  clientId?:  string
+  userId?:    string
 }
 
 export const DEV_PAYLOAD: NSBCInitPayload = {
-  token: 'dev-token',
-  firmId: 'dev-firm-id',
-  clientId: 'dev-client-id',
+  token:      'dev-token',
+  firmId:     'dev-firm-id',
   templateId: null,
-  serviceId: 'dev-service-id',
-  userId: 'dev-user-id',
-  mode: 'simple',
+  serviceId:  'dev-service-id',
+  mode:       'simple',
 }
 
 export function listenForInit(
   callback: (payload: NSBCInitPayload) => void,
-  timeoutMs = 500
+  timeoutMs = 2000
 ) {
   let resolved = false
 
   const handler = (event: MessageEvent) => {
     if (event.data?.type === 'NSBC_INIT') {
       resolved = true
-      callback(event.data.payload)
+      callback(event.data.payload as NSBCInitPayload)
     }
   }
 
@@ -35,7 +33,7 @@ export function listenForInit(
 
   setTimeout(() => {
     if (!resolved) {
-      console.warn('[NSBC] No NSBC_INIT received — using dev payload')
+      console.warn('[NSBC Bridge] No NSBC_INIT — using dev payload')
       callback(DEV_PAYLOAD)
     }
   }, timeoutMs)
@@ -45,4 +43,16 @@ export function listenForInit(
 
 export function sendToParent(type: string, payload?: object) {
   window.parent.postMessage({ type, payload }, '*')
+}
+
+export function notifySaved(templateId: string) {
+  sendToParent('NSBC_SAVE_COMPLETE', { templateId })
+}
+
+export function notifyPublished(templateId: string) {
+  sendToParent('NSBC_PUBLISH_COMPLETE', { templateId })
+}
+
+export function notifyError(message: string) {
+  sendToParent('NSBC_ERROR', { message })
 }

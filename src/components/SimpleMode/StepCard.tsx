@@ -1,190 +1,199 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
+import { GripVertical, X } from 'lucide-react'
+import { useBuilderStore } from '@/src/store/builderStore';
+import { Step } from '@/src/types/step';
 
-import { X } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { AUTONOMY_CONFIG, STEP_TYPE_CONFIG } from '@/src/lib/stepConfig'
-import { useBuilderStore } from '@/src/store/builderStore'
-import { Step } from '@/src/types/step'
 
-export default function StepCard({ step }: { step: Step }) {
-  const { selectedStepId, setSelectedStepId, deleteStep, updateStep, theme } = useBuilderStore()
-  const tc = STEP_TYPE_CONFIG[step.type]
-  const ac = AUTONOMY_CONFIG[step.autonomy_level]
-  const isSelected = selectedStepId === step.id
+const TYPE_CONFIG: Record<string, { color: string; lightColor: string; label: string; bgDark: string; bgLight: string }> = {
+  data:          { color: '#3b82f6', lightColor: '#2563eb', label: 'Data',          bgDark: 'rgba(59,130,246,0.12)',  bgLight: 'rgba(37,99,235,0.07)'  },
+  ai:            { color: '#a855f7', lightColor: '#7c3aed', label: 'AI',            bgDark: 'rgba(168,85,247,0.12)', bgLight: 'rgba(124,58,237,0.07)' },
+  human:         { color: '#f59e0b', lightColor: '#d97706', label: 'Human',         bgDark: 'rgba(245,158,11,0.12)', bgLight: 'rgba(217,119,6,0.07)'  },
+  communication: { color: '#22c55e', lightColor: '#16a34a', label: 'Communication', bgDark: 'rgba(34,197,94,0.12)',  bgLight: 'rgba(22,163,74,0.07)'  },
+  logic:         { color: '#f43f5e', lightColor: '#e11d48', label: 'Logic',         bgDark: 'rgba(244,63,94,0.12)',  bgLight: 'rgba(225,29,72,0.07)'  },
+  reporting:     { color: '#06b6d4', lightColor: '#0891b2', label: 'Reporting',     bgDark: 'rgba(6,182,212,0.12)',  bgLight: 'rgba(8,145,178,0.07)'  },
+}
 
-  const isDark = theme === 'dark'
-  const nodeBg = isDark ? '#1a1d29' : '#ffffff'
-  const bodyBg = isDark ? '#13151f' : '#f9f9fa'
-  const descColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.4)'
-  const autoBarBg = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'
-  const autoLabelColor = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.3)'
-  const assignColor = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.45)'
-  const assignLabelColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)'
-  const borderColor = isSelected
-    ? 'rgba(59,130,246,0.6)'
-    : isDark
-    ? 'rgba(255,255,255,0.08)'
-    : 'rgba(0,0,0,0.09)'
-  const deleteColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)'
+const AUTONOMY_CONFIG = [
+  { label: 'Manual',     color: '#94a3b8', pct: 0   },
+  { label: 'Assisted',   color: '#60a5fa', pct: 33  },
+  { label: 'Supervised', color: '#818cf8', pct: 66  },
+  { label: 'Autonomous', color: '#34d399', pct: 100 },
+]
+
+const AUTONOMY_MAP: Record<string, number> = {
+  manual: 0, assisted: 1, supervised: 2, autonomous: 3,
+}
+
+interface Props {
+  step: Step
+  isDark: boolean
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
+}
+
+export default function StepCard({ step, isDark, dragHandleProps }: Props) {
+  const { selectedStepId, setSelectedStepId, updateStep, deleteStep } = useBuilderStore()
 
   const [editingName, setEditingName] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
+  const [nameVal, setNameVal] = useState(step.name)
+  const [descVal, setDescVal] = useState(step.description ?? '')
   const nameRef = useRef<HTMLInputElement>(null)
   const descRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { if (editingName) nameRef.current?.focus() }, [editingName])
-  useEffect(() => { if (editingDesc) descRef.current?.focus() }, [editingDesc])
+  const isSelected = selectedStepId === step.id
+  const tc = TYPE_CONFIG[step.type] ?? TYPE_CONFIG.data
+  const autonomyIdx = AUTONOMY_MAP[step.autonomy_level ?? 'supervised'] ?? 2
+  const ac = AUTONOMY_CONFIG[autonomyIdx]
 
-  const commitName = (val: string) => {
-    const trimmed = val.trim()
-    if (trimmed) updateStep(step.id, { name: trimmed })
+  const cardBg     = isDark ? '#1a1d26' : '#ffffff'
+  const borderBase = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'
+  const borderSel  = tc.color
+  const textMain   = isDark ? '#ffffff' : '#0f1117'
+  const textMuted  = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.4)'
+  const headerBg   = isDark ? tc.bgDark : tc.bgLight
+  const typeColor  = isDark ? tc.color : tc.lightColor
+
+  function commitName() {
+    updateStep(step.id, { name: nameVal })
     setEditingName(false)
   }
 
-  const commitDesc = (val: string) => {
-    updateStep(step.id, { description: val.trim() })
+  function commitDesc() {
+    updateStep(step.id, { description: descVal })
     setEditingDesc(false)
   }
 
   return (
     <div
+      className="w-full rounded-xl overflow-hidden cursor-pointer transition-all duration-150"
+      style={{
+        background: cardBg,
+        border: `1.5px solid ${isSelected ? borderSel : borderBase}`,
+        boxShadow: isSelected
+          ? `0 0 0 3px ${isDark ? tc.color + '22' : tc.lightColor + '18'}`
+          : isDark
+          ? '0 2px 8px rgba(0,0,0,0.3)'
+          : '0 1px 4px rgba(0,0,0,0.08)',
+      }}
       onClick={() => setSelectedStepId(isSelected ? null : step.id)}
-      className={cn(
-        'w-full max-w-sm rounded-xl border cursor-pointer transition-all duration-150 select-none',
-        isSelected ? 'shadow-[0_0_0_1px_rgba(59,130,246,0.3)]' : ''
-      )}
-      style={{ borderColor, background: nodeBg }}
     >
       {/* Header */}
       <div
-        className="flex items-start gap-2.5 rounded-t-xl px-3 py-2.5"
-        style={{ background: tc.bgColor }}
+        className="flex items-center gap-2 px-3 py-2"
+        style={{ background: headerBg }}
       >
-        <span
-          className="mt-0.5 h-2 w-2 shrink-0 rounded-sm"
-          style={{ background: tc.color }}
-        />
-        <div className="flex-1 min-w-0">
-          <p
-            className="text-[9px] font-semibold uppercase tracking-wider mb-0.5"
-            style={{ color: tc.color }}
-          >
-            {tc.label}
-          </p>
-
-          {/* Step name — double-click to edit */}
-          {editingName ? (
-            <input
-              ref={nameRef}
-              defaultValue={step.name}
-              onClick={(e) => e.stopPropagation()}
-              onBlur={(e) => commitName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitName(e.currentTarget.value)
-                if (e.key === 'Escape') setEditingName(false)
-              }}
-              className="w-full rounded px-1.5 py-0.5 text-sm font-medium outline-none ring-1 ring-blue-500/60"
-              style={{
-                background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
-                color: isDark ? '#ffffff' : '#0f1117',
-              }}
-            />
-          ) : (
-            <p
-              className="text-sm font-medium leading-snug"
-              style={{ color: isDark ? '#ffffff' : '#0f1117' }}
-              onDoubleClick={(e) => {
-                e.stopPropagation()
-                setSelectedStepId(step.id)
-                setEditingName(true)
-              }}
-              title="Double-click to rename"
-            >
-              {step.name}
-            </p>
-          )}
+        {/* Drag handle */}
+        <div
+          {...dragHandleProps}
+          className="flex items-center cursor-grab active:cursor-grabbing touch-none"
+          style={{ color: textMuted }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
         </div>
+
+        {/* Type dot + label */}
+        <div
+          className="h-2 w-2 rounded-sm flex-shrink-0"
+          style={{ background: typeColor }}
+        />
+        <span
+          className="text-[10px] font-bold tracking-widest uppercase flex-1"
+          style={{ color: typeColor }}
+        >
+          {tc.label}
+        </span>
 
         {/* Delete */}
         <button
-          onClick={(e) => { e.stopPropagation(); deleteStep(step.id) }}
-          className="mt-0.5 rounded p-0.5 transition-colors"
-          style={{ color: deleteColor }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(239,68,68,0.15)'
-            e.currentTarget.style.color = '#f87171'
+          className="flex h-5 w-5 items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ color: textMuted }}
+          onClick={(e) => {
+            e.stopPropagation()
+            deleteStep(step.id)
           }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = deleteColor
-          }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#f43f5e')}
+          onMouseLeave={e => (e.currentTarget.style.color = textMuted)}
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-3 w-3" />
         </button>
       </div>
 
       {/* Body */}
-      <div className="px-3 py-2.5 rounded-b-xl" style={{ background: bodyBg }}>
-
-        {/* Description — double-click to edit */}
-        {editingDesc ? (
+      <div className="group px-3 py-2.5">
+        {/* Step name */}
+        {editingName ? (
           <input
-            ref={descRef}
-            defaultValue={step.description}
-            onClick={(e) => e.stopPropagation()}
-            onBlur={(e) => commitDesc(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitDesc(e.currentTarget.value)
-              if (e.key === 'Escape') setEditingDesc(false)
+            ref={nameRef}
+            autoFocus
+            value={nameVal}
+            onChange={e => setNameVal(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitName()
+              if (e.key === 'Escape') { setNameVal(step.name); setEditingName(false) }
             }}
-            className="w-full rounded px-1.5 py-0.5 text-xs outline-none ring-1 ring-blue-500/40"
+            onClick={e => e.stopPropagation()}
+            className="w-full bg-transparent text-sm font-semibold outline-none border-b"
             style={{
-              background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
-              color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
+              color: textMain,
+              borderColor: typeColor,
             }}
           />
         ) : (
           <p
-            className="text-xs leading-relaxed"
-            style={{ color: descColor }}
-            onDoubleClick={(e) => {
-              e.stopPropagation()
-              setSelectedStepId(step.id)
-              setEditingDesc(true)
-            }}
-            title="Double-click to edit"
+            className="text-sm font-semibold mb-0.5 truncate"
+            style={{ color: textMain }}
+            onDoubleClick={e => { e.stopPropagation(); setEditingName(true) }}
           >
-            {step.description || (
-              <span style={{ fontStyle: 'italic', opacity: 0.5 }}>No description</span>
-            )}
+            {step.name}
+          </p>
+        )}
+
+        {/* Step description */}
+        {editingDesc ? (
+          <input
+            ref={descRef}
+            autoFocus
+            value={descVal}
+            onChange={e => setDescVal(e.target.value)}
+            onBlur={commitDesc}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitDesc()
+              if (e.key === 'Escape') { setDescVal(step.description ?? ''); setEditingDesc(false) }
+            }}
+            onClick={e => e.stopPropagation()}
+            className="w-full bg-transparent text-xs outline-none border-b"
+            style={{ color: textMuted, borderColor: typeColor }}
+          />
+        ) : (
+          <p
+            className="text-xs truncate"
+            style={{ color: textMuted }}
+            onDoubleClick={e => { e.stopPropagation(); setEditingDesc(true) }}
+          >
+            {step.description || 'Double-click to add description'}
           </p>
         )}
 
         {/* Autonomy bar */}
-        <div className="mt-2.5 flex items-center gap-2">
+        <div className="flex items-center gap-2 mt-2.5">
           <div
-            className="flex-1 h-1 rounded-full"
-            style={{ background: autoBarBg }}
+            className="flex-1 rounded-full overflow-hidden"
+            style={{
+              height: '3px',
+              background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)',
+            }}
           >
             <div
-              className="h-1 rounded-full transition-all duration-300"
+              className="h-full rounded-full transition-all duration-300"
               style={{ width: `${ac.pct}%`, background: ac.color }}
             />
           </div>
-          <span className="text-[10px] whitespace-nowrap" style={{ color: autoLabelColor }}>
+          <span className="text-[10px] flex-shrink-0" style={{ color: textMuted }}>
             {ac.label}
-          </span>
-        </div>
-
-        {/* Assigned role */}
-        <div className="mt-2 flex items-center gap-1.5">
-          <span className="text-[10px]" style={{ color: assignLabelColor }}>Assigned:</span>
-          <span className="text-[10px] font-medium" style={{ color: assignColor }}>
-            {step.assigned_role === 'ai_agent' ? 'AI Agent' :
-             step.assigned_role === 'accountant' ? 'Accountant' :
-             step.assigned_role === 'staff' ? 'Staff' : 'Client'}
           </span>
         </div>
       </div>
