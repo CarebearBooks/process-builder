@@ -1,11 +1,14 @@
 export interface NSBCInitPayload {
-  token:      string
-  firmId:     string
-  templateId: string | null
-  serviceId:  string
-  mode:       'simple' | 'flow'
-  clientId?:  string
-  userId?:    string
+  token:             string
+  firmId:            string
+  templateId:        string | null   // Supabase UUID (empty for new templates)
+  serviceId:         string
+  mode:              'simple' | 'flow'
+  bubbleTemplateId?: string          // Bubble unique ID (used for publish callback)
+  serviceName?:      string
+  serviceVertical?:  string
+  clientId?:         string
+  userId?:           string
 }
 
 export const DEV_PAYLOAD: NSBCInitPayload = {

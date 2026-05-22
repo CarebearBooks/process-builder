@@ -26,20 +26,26 @@ export default function BuilderShell() {
   useBuilderKeyboard()
 
   const {
-    templateId, templateName, setTemplateName,
-    templateMode, setTemplateMode,
+    templateId,
+    templateName,       setTemplateName,
+    templateMode,       setTemplateMode,
     templateStatus,
-    serviceName, serviceVertical,
-    isSaving, setIsSaving,
-    lastSavedAt, setLastSavedAt,
+    serviceName,        serviceVertical,
+    isSaving,           setIsSaving,
+    lastSavedAt,        setLastSavedAt,
     isDirty,
-    steps, wizardComplete,
-    undo, redo, canUndo, canRedo,
-    initPayload, theme, setTheme,
+    steps,              wizardComplete,
+    undo,               redo,
+    canUndo,            canRedo,
+    initPayload,
+    theme,              setTheme,
+    markClean,
   } = useBuilderStore()
 
-  const [editingName, setEditingName] = useState(false)
-  const [showValidation, setShowValidation] = useState(false)
+  const { save } = useTemplate()
+
+  const [editingName,     setEditingName]     = useState(false)
+  const [showValidation,  setShowValidation]  = useState(false)
   const nameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -57,57 +63,82 @@ export default function BuilderShell() {
 
   const validation = validateTemplate(templateName, steps, templateMode)
 
+  // ── SAVE DRAFT ──────────────────────────────────────────
   const handleSave = async () => {
-    const { initPayload, steps, templateName } = useBuilderStore.getState()
-    if (!initPayload?.templateId) return
+    if (isSaving) return
+    // If no real templateId yet, use the autosave hook
+    if (!initPayload?.templateId || initPayload.templateId === 'dev-template-id') {
+      await save()
+      return
+    }
     setIsSaving(true)
-    const supabase = getSupabaseClient(initPayload.token)
-    const { error } = await supabase
-      .from('process_templates')
-      .update({
-        name:       templateName,
-        steps_json: steps,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', initPayload.templateId)
-    setIsSaving(false)
-    if (!error) {
+    try {
+      const supabase = getSupabaseClient(initPayload.token)
+      const { error } = await supabase
+        .from('process_templates')
+        .update({
+          name:       templateName,
+          steps_json: steps,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', initPayload.templateId)
+      if (error) throw error
       setLastSavedAt(new Date())
+      markClean()
       notifySaved(initPayload.templateId)
-    } else {
-      notifyError('Save failed: ' + error.message)
+    } catch (err: any) {
+      notifyError('Save failed: ' + (err?.message ?? String(err)))
+    } finally {
+      setIsSaving(false)
     }
   }
 
+  // ── PUBLISH ─────────────────────────────────────────────
   const handlePublish = async () => {
-    const { initPayload, steps, templateName } = useBuilderStore.getState()
-    if (!initPayload?.templateId) return
-    const supabase = getSupabaseClient(initPayload.token)
-    const { error } = await supabase
-      .from('process_templates')
-      .update({
-        name:         templateName,
-        steps_json:   steps,
-        status:       'active',
-        published_at: new Date().toISOString(),
-        updated_at:   new Date().toISOString(),
-      })
-      .eq('id', initPayload.templateId)
-    if (!error) notifyPublished(initPayload.templateId)
-    else notifyError('Publish failed: ' + error.message)
+    if (!validation.valid) { setShowValidation(true); return }
+    if (!initPayload?.templateId || initPayload.templateId === 'dev-template-id') {
+      notifyError('Cannot publish: no template ID')
+      return
+    }
+    setIsSaving(true)
+    try {
+      const supabase = getSupabaseClient(initPayload.token)
+      const { error } = await supabase
+        .from('process_templates')
+        .update({
+          name:         templateName,
+          steps_json:   steps,
+          status:       'active',
+          published_at: new Date().toISOString(),
+          updated_at:   new Date().toISOString(),
+        })
+        .eq('id', initPayload.templateId)
+      if (error) throw error
+      useBuilderStore.setState({ templateStatus: 'active' })
+      markClean()
+      setLastSavedAt(new Date())
+      // Send Bubble's own unique ID so Workflow B can find and update the record
+      notifyPublished(initPayload.bubbleTemplateId ?? initPayload.templateId ?? '')
+    } catch (err: any) {
+      notifyError('Publish failed: ' + (err?.message ?? String(err)))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
+  // ── SAVE LABEL ──────────────────────────────────────────
   const saveLabel = isSaving
     ? 'Saving…'
     : lastSavedAt
     ? `Saved ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-    : isDirty ? 'Unsaved changes'
+    : isDirty
+    ? 'Unsaved changes'
     : 'All changes saved'
 
   const isDark      = theme === 'dark'
   const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'
   const barBg       = isDark ? '#0a0c12' : '#ffffff'
-  const textPrimary = isDark ? '#ffffff' : '#0f1117'
+  const textPrimary = isDark ? '#ffffff'  : '#0f1117'
   const textMuted   = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.4)'
   const hoverBg     = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)'
 
@@ -154,12 +185,10 @@ export default function BuilderShell() {
       >
         {/* Service breadcrumb */}
         {serviceName && (
-          <div className="flex items-center gap-1.5 text-xs" style={{ color: textMuted }}>
+          <div className="flex items-center gap-1.5 text-xs shrink-0" style={{ color: textMuted }}>
             <span>{serviceVertical}</span>
             <span style={{ opacity: 0.4 }}>›</span>
-            <span style={{ color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)' }}>
-              {serviceName}
-            </span>
+            <span style={{ color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)' }}>{serviceName}</span>
             <span style={{ opacity: 0.4 }}>›</span>
           </div>
         )}
@@ -188,22 +217,22 @@ export default function BuilderShell() {
               onMouseEnter={e => (e.currentTarget.style.background = hoverBg)}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              {templateName}
-              <PencilIcon className="h-3 w-3" style={{ color: textMuted }} />
+              <span className="truncate max-w-[180px]">{templateName}</span>
+              <PencilIcon className="h-3 w-3 shrink-0" style={{ color: textMuted }} />
             </button>
           )}
           <Badge
             variant="outline"
-            className={`text-[10px] ${templateStatus === 'active' ? 'text-emerald-400 border-emerald-400/30' : ''}`}
+            className={`text-[10px] shrink-0 ${templateStatus === 'active' ? 'text-emerald-400 border-emerald-400/30' : ''}`}
             style={templateStatus !== 'active' ? { color: textMuted, borderColor } : {}}
           >
             {templateStatus}
           </Badge>
         </div>
 
-        {/* ── MODE TOGGLE — clearly visible in both themes ── */}
+        {/* ── MODE TOGGLE ── */}
         <div
-          className="ml-2 flex items-center rounded-lg p-0.5 gap-0.5"
+          className="ml-2 flex items-center rounded-lg p-0.5 gap-0.5 shrink-0"
           style={{
             background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
             border: `1px solid ${borderColor}`,
@@ -215,14 +244,12 @@ export default function BuilderShell() {
               <button
                 key={m}
                 onClick={() => setTemplateMode(m)}
-                className="h-6 rounded-md px-3 text-xs font-medium transition-all duration-150"
+                className="h-6 rounded-md px-3 text-xs transition-all duration-150"
                 style={{
-                  background: isActive
-                    ? isDark ? 'rgba(255,255,255,0.15)' : '#ffffff'
-                    : 'transparent',
-                  color: isActive ? textPrimary : textMuted,
-                  boxShadow: isActive && !isDark ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-                  fontWeight: isActive ? 600 : 400,
+                  background:  isActive ? (isDark ? 'rgba(255,255,255,0.15)' : '#ffffff') : 'transparent',
+                  color:       isActive ? textPrimary : textMuted,
+                  fontWeight:  isActive ? 600 : 400,
+                  boxShadow:   isActive && !isDark ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
                 }}
               >
                 {m.charAt(0).toUpperCase() + m.slice(1)}
@@ -231,43 +258,43 @@ export default function BuilderShell() {
           })}
         </div>
 
-        <span className="text-xs ml-1" style={{ color: textMuted }}>
+        <span className="text-xs shrink-0" style={{ color: textMuted }}>
           {steps.length} step{steps.length !== 1 ? 's' : ''}
         </span>
 
         <div className="flex-1" />
 
         {/* Save status */}
-        <span className="flex items-center gap-1.5 text-xs" style={{ color: textMuted }}>
+        <span className="flex items-center gap-1.5 text-xs shrink-0" style={{ color: textMuted }}>
           <CloudIcon className="h-3.5 w-3.5" />
           {saveLabel}
         </span>
 
-        {/* Undo / Redo */}
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => canUndo() && undo()}
-            disabled={!canUndo()}
-            title="Undo (Ctrl+Z)"
-            className="flex h-7 w-7 items-center justify-center rounded transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-            style={{ color: textMuted }}
-            onMouseEnter={e => !e.currentTarget.disabled && (e.currentTarget.style.background = hoverBg)}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >
-            <Undo2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => canRedo() && redo()}
-            disabled={!canRedo()}
-            title="Redo (Ctrl+Shift+Z)"
-            className="flex h-7 w-7 items-center justify-center rounded transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-            style={{ color: textMuted }}
-            onMouseEnter={e => !e.currentTarget.disabled && (e.currentTarget.style.background = hoverBg)}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-          >
-            <Redo2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        {/* Undo */}
+        <button
+          onClick={() => { if (canUndo()) undo() }}
+          disabled={!canUndo()}
+          title="Undo (Ctrl+Z)"
+          className="flex h-7 w-7 items-center justify-center rounded transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          style={{ color: textMuted }}
+          onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.background = hoverBg }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+        >
+          <Undo2 className="h-3.5 w-3.5" />
+        </button>
+
+        {/* Redo */}
+        <button
+          onClick={() => { if (canRedo()) redo() }}
+          disabled={!canRedo()}
+          title="Redo (Ctrl+Shift+Z)"
+          className="flex h-7 w-7 items-center justify-center rounded transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+          style={{ color: textMuted }}
+          onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.background = hoverBg }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+        >
+          <Redo2 className="h-3.5 w-3.5" />
+        </button>
 
         {/* Theme toggle */}
         <button
@@ -281,15 +308,15 @@ export default function BuilderShell() {
           {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
         </button>
 
-        <Separator orientation="vertical" className="h-5" style={{ background: borderColor }} />
+        <Separator orientation="vertical" className="h-5 shrink-0" style={{ background: borderColor }} />
 
-        {/* Save + Publish */}
+        {/* Save Draft */}
         <Button
           variant="outline"
           size="sm"
           onClick={handleSave}
           disabled={isSaving}
-          className="h-7 text-xs"
+          className="h-7 text-xs shrink-0"
           style={{
             background:  isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
             borderColor,
@@ -298,10 +325,13 @@ export default function BuilderShell() {
         >
           {isSaving ? 'Saving…' : 'Save Draft'}
         </Button>
+
+        {/* Publish */}
         <Button
           size="sm"
           onClick={handlePublish}
-          className="h-7 bg-emerald-500 text-xs font-medium text-black hover:bg-emerald-400"
+          disabled={isSaving}
+          className="h-7 bg-emerald-500 text-xs font-medium text-black hover:bg-emerald-400 shrink-0 disabled:opacity-50"
         >
           <CheckIcon className="mr-1 h-3.5 w-3.5" />
           Publish
