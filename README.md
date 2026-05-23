@@ -65,6 +65,9 @@ Templates are saved to Supabase and can be executed against specific clients fro
 
 **Critical rule:** Bubble never owns data. All reads and writes go through Supabase. This app uses the Supabase JS client directly with the JWT passed from Bubble.
 
+**How it connects to the Payroll Calculator:**
+When a "Bi-Weekly Payroll Run" template is executed, the AI step in that template launches the Payroll Calculator iframe. When the accountant approves the payroll run in the calculator, a postMessage is sent back — and the execution engine marks that step as `completed` in `step_executions`, advancing the process to the next step. The Process Builder is the orchestrator; the Payroll Calculator is one of its step executors.
+
 ---
 
 ## Tech Stack
@@ -226,6 +229,10 @@ Controls how much the AI handles vs. how much requires human action:
 
 - **Simple Mode** — Linear list of steps. Drag to reorder. This is the primary mode and is fully built.
 - **Flow Mode** — Node-based canvas using React Flow. For branching/conditional workflows. UI placeholder exists; canvas not yet implemented.
+
+### Execution Context
+
+When a template is *run* against a client, the builder is not involved — the execution engine (Supabase Edge Function, Phase 6) takes over. It creates a `process_executions` row and iterates through `step_executions`, calling the appropriate agent or tool per step type. The builder's job is only template authoring.
 
 ---
 
@@ -433,6 +440,8 @@ Hook attached at `BuilderShell` level. Listens for `keydown` on `window`. Ignore
    → Supabase Edge Function: process_execution_runner
    → Creates process_executions + step_executions rows
    → Step status transitions
+   → When step type is 'ai' and agent is payroll: launches Payroll Calculator iframe,
+     passes executionId + stepExecutionId in postMessage payload
 
 7. Library templates
    → Browse/search system templates
